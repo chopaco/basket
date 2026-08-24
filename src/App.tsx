@@ -1958,7 +1958,7 @@ players.forEach(
       <section className="card">
 
         <h2>
-          参加者登録
+          --- 参加者登録 ---
         </h2>
 
         <div className="input-area">
@@ -2048,7 +2048,7 @@ players.forEach(
       <section className="card">
 
         <h2>
-          試合設定
+          --- 試合設定 ---
         </h2>
 
         <label>
@@ -2113,11 +2113,11 @@ players.forEach(
         <section className="card history-card">
 
           <h2>
-            📜 生成履歴
+            📜 生成履歴 📜
           </h2>
 
           <p className="history-description">
-            直近3回の生成結果を保存しています。
+            直近3回の生成結果を保存しています
           </p>
 
           <div className="history-list">
@@ -2225,19 +2225,19 @@ players.forEach(
             <div className="legend">
 
               <span>
-                ○ 出場
+                ○：出場
               </span>
 
               <span>
-                休 休憩
+                休：休憩
               </span>
 
               <span>
-                ③ 3連続
+                ③：3連続
               </span>
 
               <span>
-                ④ 4連続以上
+                ④：4連続以上
               </span>
 
             </div>
@@ -2442,19 +2442,7 @@ players.forEach(
 
             <div className="explanation">
 
-              <p>
-                <strong>
-                  ③
-                </strong>
-                ：3試合連続出場
-              </p>
 
-              <p>
-                <strong>
-                  ④
-                </strong>
-                ：4試合以上連続出場
-              </p>
 
               <p>
                 3連続出場は完全禁止ではなく、
@@ -2491,7 +2479,7 @@ players.forEach(
           <section className="card">
 
             <h2>
-              🏀 試合メンバー
+              👶 試合メンバー 👶
             </h2>
 
             <div className="game-list">
@@ -2550,7 +2538,7 @@ players.forEach(
           <section className="card">
 
             <h2>
-              👥 5人組の重複
+              👥 5人組の重複 👥
             </h2>
 
             {duplicateTeams.length ===
