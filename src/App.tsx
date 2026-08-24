@@ -2068,8 +2068,7 @@ const shareResult = async () => {
       await navigator.share({
         title:
           '🏀 試合メンバー',
-        text:
-          '試合メンバーはこちら',
+
         url,
       })
     } catch {
