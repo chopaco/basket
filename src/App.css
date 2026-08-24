@@ -772,3 +772,55 @@ h2 {
     padding: 6px 8px;
   }
 }
+
+/* =========================================================
+   結果共有
+   ========================================================= */
+
+.share-buttons {
+  display: flex;
+  justify-content: center;
+  flex-wrap: wrap;
+  gap: 8px;
+
+  margin-bottom: 16px;
+}
+
+.share-buttons button {
+  padding: 9px 14px;
+
+  border: none;
+  border-radius: 7px;
+
+  font-weight: 600;
+  cursor: pointer;
+}
+
+.share-button {
+  background: #1976d2;
+  color: #fff;
+}
+
+.share-button:hover {
+  background: #1565c0;
+}
+
+.copy-button {
+  background: #e9ecef;
+  color: #333;
+}
+
+.copy-button:hover {
+  background: #dde1e5;
+}
+
+@media (max-width: 480px) {
+  .share-buttons {
+    gap: 6px;
+  }
+
+  .share-buttons button {
+    padding: 8px 11px;
+    font-size: 13px;
+  }
+}

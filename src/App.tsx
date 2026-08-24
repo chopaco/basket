@@ -1940,6 +1940,65 @@ players.forEach(
     return streak
   }
 
+// =========================================================
+// 共有用
+// =========================================================
+
+const createShareText = () => {
+  const lines = [
+    '👶 試合メンバー 👶',
+    '',
+  ]
+
+  games.forEach((game) => {
+    lines.push(
+      `試${game.gameNumber}：${game.players.join('・')}`
+    )
+  })
+
+  return lines.join('\n')
+}
+
+const copyResult = async () => {
+  const text = createShareText()
+
+  try {
+    await navigator.clipboard.writeText(text)
+    alert('結果をコピーしました')
+  } catch {
+    alert('コピーできませんでした')
+  }
+}
+
+const shareResult = async () => {
+  const text = createShareText()
+
+  if (navigator.share) {
+    try {
+      await navigator.share({
+        title: '🏀 試合メンバー',
+        text,
+      })
+    } catch (error) {
+      // ユーザーが共有画面を閉じた場合などは何もしない
+      console.log(error)
+    }
+
+    return
+  }
+
+  // Web Share API非対応端末ではコピー
+  try {
+    await navigator.clipboard.writeText(text)
+
+    alert(
+      '共有機能に対応していないため、結果をコピーしました'
+    )
+  } catch {
+    alert('共有できませんでした')
+  }
+}
+
   // =========================================================
   // JSX
   // =========================================================
@@ -2481,6 +2540,24 @@ players.forEach(
             <h2>
               👶 試合メンバー 👶
             </h2>
+
+<div className="share-buttons">
+
+  <button
+    className="share-button"
+    onClick={shareResult}
+  >
+    📤 結果を共有
+  </button>
+
+  <button
+    className="copy-button"
+    onClick={copyResult}
+  >
+    📋 結果をコピー
+  </button>
+
+</div>
 
             <div className="game-list">
 
