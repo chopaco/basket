@@ -6,13 +6,7 @@ type Game = {
   players: string[]
 }
 
-type SharePayload = {
-  v: 1
-  p: string[]
-  g: number[][]
-}
-
-type SharedData = {
+type ShareData = {
   players: string[]
   games: Game[]
 }
@@ -106,23 +100,87 @@ const loadSavedHistory = (): History[] => {
   }
 }
 
+
 function App() {
-  const [name, setName] = useState('')
+  const [name, setName] =
+    useState('')
 
   const [players, setPlayers] =
-    useState<string[]>(loadSavedPlayers)
+    useState<string[]>(
+      loadSavedPlayers
+    )
 
   const [gameCount, setGameCount] =
-    useState<number>(loadSavedGameCount)
+    useState<number>(
+      loadSavedGameCount
+    )
 
   const [games, setGames] =
-    useState<Game[]>(loadSavedGames)
+    useState<Game[]>(
+      loadSavedGames
+    )
 
   const [history, setHistory] =
-    useState<History[]>(loadSavedHistory)
+    useState<History[]>(
+      loadSavedHistory
+    )
+
 
   const [isGenerating, setIsGenerating] =
     useState(false)
+
+useEffect(() => {
+  try {
+    const prefix =
+      '#result='
+
+    if (
+      !window.location.hash.startsWith(
+        prefix
+      )
+    ) {
+      return
+    }
+
+    const encoded =
+      window.location.hash.slice(
+        prefix.length
+      )
+
+    const json =
+      decodeURIComponent(
+        encoded
+      )
+
+    const data =
+      JSON.parse(
+        json
+      ) as ShareData
+
+    if (
+      !Array.isArray(data.players) ||
+      !Array.isArray(data.games)
+    ) {
+      return
+    }
+
+    setPlayers(
+      data.players
+    )
+
+    setGames(
+      data.games
+    )
+
+    setGameCount(
+      data.games.length
+    )
+  } catch {
+    alert(
+      '共有された結果を読み込めませんでした'
+    )
+  }
+}, [])
 
   // =========================================================
   // 自動保存
@@ -1981,32 +2039,58 @@ const copyResult = async () => {
   }
 }
 
+const createShareUrl = () => {
+  const data: ShareData = {
+    players,
+    games,
+  }
+
+  const json =
+    JSON.stringify(data)
+
+  const encoded =
+    encodeURIComponent(json)
+
+  return (
+    window.location.origin +
+    window.location.pathname +
+    '#result=' +
+    encoded
+  )
+}
+
 const shareResult = async () => {
-  const text = createShareText()
+  const url =
+    createShareUrl()
 
   if (navigator.share) {
     try {
       await navigator.share({
-        title: '🏀 試合メンバー',
-        text,
+        title:
+          '🏀 試合メンバー',
+        text:
+          '試合メンバーはこちら',
+        url,
       })
-    } catch (error) {
-      // ユーザーが共有画面を閉じた場合などは何もしない
-      console.log(error)
+    } catch {
+      // 共有をキャンセルした場合は何もしない
     }
 
     return
   }
 
-  // Web Share API非対応端末ではコピー
   try {
-    await navigator.clipboard.writeText(text)
+    await navigator.clipboard.writeText(
+      url
+    )
 
     alert(
-      '共有機能に対応していないため、結果をコピーしました'
+      '共有URLをコピーしました'
     )
   } catch {
-    alert('共有できませんでした')
+    alert(
+      '共有できませんでした'
+    )
   }
 }
 
