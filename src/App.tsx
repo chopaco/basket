@@ -6,6 +6,17 @@ type Game = {
   players: string[]
 }
 
+type SharePayload = {
+  v: 1
+  p: string[]
+  g: number[][]
+}
+
+type SharedData = {
+  players: string[]
+  games: Game[]
+}
+
 type Stats = {
   plays: number
   rests: number
