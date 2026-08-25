@@ -8,6 +8,20 @@ type Game = {
 
 type Position = 'G' | 'F' | 'C' | ''
 
+type PositionCounts = {
+  G: number
+  F: number
+  C: number
+}
+
+type TeamCandidate = {
+  players: string[]
+  key: string
+  restKey: string
+  pairKeys: string[]
+  positionCounts: PositionCounts
+}
+
 
 type ShareData = {
   players: string[]
@@ -33,6 +47,8 @@ type History = {
   players: string[]
   gameCount: number
   games: Game[]
+  usePositions: boolean
+  positions: Record<string, Position>
 }
 
 const TEAM_SIZE = 5
@@ -154,16 +170,83 @@ const loadSavedHistory = (): History[] => {
   }
 }
 
+const loadSharedData = (): ShareData | null => {
+  try {
+    const prefix = '#result='
+
+    if (
+      !window.location.hash.startsWith(
+        prefix
+      )
+    ) {
+      return null
+    }
+
+    const encoded =
+      window.location.hash.slice(
+        prefix.length
+      )
+
+    const parsed = JSON.parse(
+      decodeURIComponent(encoded)
+    ) as Partial<ShareData>
+
+    if (
+      !Array.isArray(parsed.players) ||
+      !Array.isArray(parsed.games)
+    ) {
+      return null
+    }
+
+    return {
+      players: parsed.players,
+      games: parsed.games,
+      usePositions:
+        parsed.usePositions === true,
+      positions:
+        parsed.positions &&
+        typeof parsed.positions === 'object'
+          ? parsed.positions
+          : {},
+    }
+  } catch {
+    alert(
+      '共有された結果を読み込めませんでした'
+    )
+    return null
+  }
+}
+
 
 function App() {
+  const [sharedData] =
+    useState(loadSharedData)
+
   const [name, setName] =
     useState('')
+
+  const [inputError, setInputError] =
+    useState('')
+
+  const [editingPlayer, setEditingPlayer] =
+    useState<string | null>(null)
+
+  const [editingName, setEditingName] =
+    useState('')
+
+  const [editError, setEditError] =
+    useState('')
+
+  const [resultView, setResultView] =
+    useState<'games' | 'summary'>('games')
 
 const [
   usePositions,
   setUsePositions,
 ] = useState(
-  loadSavedUsePositions
+  () =>
+    sharedData?.usePositions ??
+    loadSavedUsePositions()
 )
 
 const [position, setPosition] =
@@ -173,21 +256,30 @@ const [positions, setPositions] =
   useState<
     Record<string, Position>
   >(
-    loadSavedPositions
+    () =>
+      sharedData?.positions ??
+      loadSavedPositions()
   )
   const [players, setPlayers] =
     useState<string[]>(
-      loadSavedPlayers
+      () =>
+        sharedData?.players ??
+        loadSavedPlayers()
     )
 
   const [gameCount, setGameCount] =
     useState<number>(
-      loadSavedGameCount
+      () =>
+        sharedData
+          ? sharedData.games.length
+          : loadSavedGameCount()
     )
 
   const [games, setGames] =
     useState<Game[]>(
-      loadSavedGames
+      () =>
+        sharedData?.games ??
+        loadSavedGames()
     )
 
   const [history, setHistory] =
@@ -198,68 +290,6 @@ const [positions, setPositions] =
 
   const [isGenerating, setIsGenerating] =
     useState(false)
-
-useEffect(() => {
-  try {
-    const prefix =
-      '#result='
-
-    if (
-      !window.location.hash.startsWith(
-        prefix
-      )
-    ) {
-      return
-    }
-
-    const encoded =
-      window.location.hash.slice(
-        prefix.length
-      )
-
-    const json =
-      decodeURIComponent(
-        encoded
-      )
-
-    const data =
-      JSON.parse(
-        json
-      ) as ShareData
-
-    if (
-      !Array.isArray(data.players) ||
-      !Array.isArray(data.games)
-    ) {
-      return
-    }
-
-    setPlayers(
-      data.players
-    )
-
-    setGames(
-      data.games
-    )
-
-    setGameCount(
-      data.games.length
-    )
-
-    setUsePositions(
-  data.usePositions === true
-)
-
-setPositions(
-  data.positions || {}
-)
-
-  } catch {
-    alert(
-      '共有された結果を読み込めませんでした'
-    )
-  }
-}, [])
 
 useEffect(() => {
   try {
@@ -357,29 +387,36 @@ useEffect(() => {
   const addPlayer = () => {
     const value = name.trim()
 
-    if (!value) return
-
-if (
-  usePositions &&
-  !position
-) {
-  alert(
-    'ポジションを選択してください'
-  )
-  return
-}
-
-    if (players.includes(value)) {
-      alert('同じ名前が登録されています')
+    if (!value) {
+      setInputError(
+        '参加者名を入力してください'
+      )
       return
     }
 
-if (players.length >= MAX_PLAYERS) {
-  alert(
-    `現在の9.5版は最大${MAX_PLAYERS}人まで対応しています`
-  )
-  return
-}
+    if (
+      usePositions &&
+      !position
+    ) {
+      setInputError(
+        'ポジションを選択してください'
+      )
+      return
+    }
+
+    if (players.includes(value)) {
+      setInputError(
+        '同じ名前が登録されています'
+      )
+      return
+    }
+
+    if (players.length >= MAX_PLAYERS) {
+      setInputError(
+        `参加者は最大${MAX_PLAYERS}人までです`
+      )
+      return
+    }
 
 setPlayers([
   ...players,
@@ -395,17 +432,155 @@ if (usePositions) {
 
 setName('')
 setPosition('')
+setInputError('')
 setGames([])
+  }
+
+  const startEditingPlayer = (
+    player: string
+  ) => {
+    setEditingPlayer(player)
+    setEditingName(player)
+    setEditError('')
+  }
+
+  const cancelEditingPlayer = () => {
+    setEditingPlayer(null)
+    setEditingName('')
+    setEditError('')
+  }
+
+  const saveEditedPlayer = () => {
+    if (!editingPlayer) {
+      return
+    }
+
+    const nextName =
+      editingName.trim()
+
+    if (!nextName) {
+      setEditError(
+        '名前を入力してください'
+      )
+      return
+    }
+
+    if (
+      nextName !== editingPlayer &&
+      players.includes(nextName)
+    ) {
+      setEditError(
+        '同じ名前が登録されています'
+      )
+      return
+    }
+
+    if (nextName !== editingPlayer) {
+      setPlayers(
+        (current) =>
+          current.map(
+            (player) =>
+              player === editingPlayer
+                ? nextName
+                : player
+          )
+      )
+
+      setPositions(
+        (current) => {
+          const next = {
+            ...current,
+          }
+          const savedPosition =
+            next[editingPlayer]
+
+          delete next[editingPlayer]
+
+          if (savedPosition) {
+            next[nextName] = savedPosition
+          }
+
+          return next
+        }
+      )
+
+      setGames(
+        (current) =>
+          current.map(
+            (game) => ({
+              ...game,
+              players:
+                game.players.map(
+                  (player) =>
+                    player === editingPlayer
+                      ? nextName
+                      : player
+                ),
+            })
+          )
+      )
+    }
+
+    cancelEditingPlayer()
   }
 
   const removePlayer = (
     index: number
   ) => {
+    const playerToRemove =
+      players[index]
+
     setPlayers(
       players.filter(
         (_, i) =>
           i !== index
       )
+    )
+
+    setPositions(
+      (current) => {
+        const next = {
+          ...current,
+        }
+
+        delete next[playerToRemove]
+
+        return next
+      }
+    )
+
+    setGames([])
+  }
+
+  const clearPlayers = () => {
+    if (players.length === 0) {
+      return
+    }
+
+    if (
+      !window.confirm(
+        '参加者を全員削除しますか？生成結果も削除されます。'
+      )
+    ) {
+      return
+    }
+
+    setPlayers([])
+    setPositions({})
+    setGames([])
+    setName('')
+    setPosition('')
+  }
+
+  const updatePlayerPosition = (
+    player: string,
+    nextPosition: Exclude<Position, ''>
+  ) => {
+    setPositions(
+      (current) => ({
+        ...current,
+        [player]: nextPosition,
+      })
     )
 
     setGames([])
@@ -434,6 +609,17 @@ setGames([])
       ],
 
       gameCount,
+
+      usePositions,
+
+      positions: Object.fromEntries(
+        players.map(
+          (player) => [
+            player,
+            positions[player] || '',
+          ]
+        )
+      ),
 
       games:
         generatedGames.map(
@@ -469,6 +655,14 @@ setGames([])
 
     setGameCount(
       item.gameCount
+    )
+
+    setUsePositions(
+      item.usePositions === true
+    )
+
+    setPositions(
+      item.positions || {}
     )
 
     setGames(
@@ -892,7 +1086,57 @@ setGames([])
 
   const getTeamCandidates = () => {
     const result:
-      string[][] = []
+      TeamCandidate[] = []
+
+    const createCandidate = (
+      team: string[]
+    ): TeamCandidate => {
+      const pairKeys: string[] = []
+      const positionCounts:
+        PositionCounts = {
+          G: 0,
+          F: 0,
+          C: 0,
+        }
+
+      team.forEach(
+        (player, index) => {
+          const playerPosition =
+            positions[player]
+
+          if (
+            playerPosition === 'G' ||
+            playerPosition === 'F' ||
+            playerPosition === 'C'
+          ) {
+            positionCounts[
+              playerPosition
+            ]++
+          }
+
+          for (
+            let pairIndex = index + 1;
+            pairIndex < team.length;
+            pairIndex++
+          ) {
+            pairKeys.push(
+              pairKey(
+                player,
+                team[pairIndex]
+              )
+            )
+          }
+        }
+      )
+
+      return {
+        players: team,
+        key: teamKey(team),
+        restKey: restGroupKey(team),
+        pairKeys,
+        positionCounts,
+      }
+    }
 
     const build = (
       start: number,
@@ -902,9 +1146,11 @@ setGames([])
         current.length ===
         TEAM_SIZE
       ) {
-        result.push([
-          ...current,
-        ])
+        result.push(
+          createCandidate([
+            ...current,
+          ])
+        )
 
         return
       }
@@ -1034,7 +1280,9 @@ const calculatePositionPenalty = (
   target?: Record<
     string,
     number
-  >
+  >,
+  precomputedPositionCounts?:
+    PositionCounts
 ) => {
   // ポジション設定を使わない場合は
   // ポジション評価を完全に無効化
@@ -1067,30 +1315,33 @@ const calculatePositionPenalty = (
     }
   )
 
-  const teamCounts = {
-    G: 0,
-    F: 0,
-    C: 0,
-  }
-
-  team.forEach(
-    (player) => {
-      const pos =
-        positions[player]
-
-      if (pos === 'G') {
-        teamCounts.G++
-      }
-
-      if (pos === 'F') {
-        teamCounts.F++
-      }
-
-      if (pos === 'C') {
-        teamCounts.C++
-      }
+  const teamCounts =
+    precomputedPositionCounts || {
+      G: 0,
+      F: 0,
+      C: 0,
     }
-  )
+
+  if (!precomputedPositionCounts) {
+    team.forEach(
+      (player) => {
+        const pos =
+          positions[player]
+
+        if (pos === 'G') {
+          teamCounts.G++
+        }
+
+        if (pos === 'F') {
+          teamCounts.F++
+        }
+
+        if (pos === 'C') {
+          teamCounts.C++
+        }
+      }
+    )
+  }
 
   // =======================================================
   // そのポジションの
@@ -1297,6 +1548,7 @@ const calculatePositionPenalty = (
   const evaluateCandidate = (
     schedule: Game[],
     candidate: Game,
+    candidateInfo: TeamCandidate,
     target:
       Record<
         string,
@@ -1597,9 +1849,7 @@ players.forEach(
     // =======================================================
 
     const candidateRestKey =
-      restGroupKey(
-        candidate.players
-      )
+      candidateInfo.restKey
 
     let sameRestCount = 0
 
@@ -1680,7 +1930,8 @@ if (
 score +=
   calculatePositionPenalty(
     candidate.players,
-    target
+    target,
+    candidateInfo.positionCounts
   )
 
 // =======================================================
@@ -1692,9 +1943,7 @@ score +=
       )
 
     const newTeamKey =
-      teamKey(
-        candidate.players
-      )
+      candidateInfo.key
 
     const newTeamCount =
       teamCounts[
@@ -1705,26 +1954,26 @@ if (
   newTeamCount === 2
 ) {
   score +=
-    300
+    100
 }
 
 if (
   newTeamCount === 3
 ) {
   score +=
-    1000
+    2500
 }
 
 if (
   newTeamCount >= 4
 ) {
   score +=
-    2000 +
+    10000 +
     (
       newTeamCount -
       4
     ) *
-    2000
+    5000
 }
 
     // =======================================================
@@ -1760,40 +2009,18 @@ if (
         testSchedule
       )
 
-    candidate.players.forEach(
-      (a, i) => {
-        for (
-          let j =
-            i + 1;
-          j <
-          candidate.players.length;
-          j++
-        ) {
-          const b =
-            candidate.players[
-              j
-            ]
+    candidateInfo.pairKeys.forEach(
+      (key) => {
+        const count =
+          pairCounts[key] || 0
 
-          const count =
-            pairCounts[
-              pairKey(
-                a,
-                b
-              )
-            ] || 0
-
-          // 人数によって平均同席回数が違うので
-          // 非常に強くは評価しない
-          if (
-            count >= 5
-          ) {
-            score +=
-              (
-                count -
-                4
-              ) *
-              400
-          }
+        // 人数によって平均同席回数が違うので
+        // 非常に強くは評価しない
+        if (count >= 5) {
+          score +=
+            (
+              count - 4
+            ) * 400
         }
       }
     )
@@ -1818,13 +2045,11 @@ if (
       Record<
         string,
         number
-      >
+      >,
+    allTeams: TeamCandidate[]
   ) => {
     const schedule:
       Game[] = []
-
-    const allTeams =
-      getTeamCandidates()
 
     for (
       let gameIndex = 0;
@@ -1855,7 +2080,7 @@ if (
             gameIndex + 1,
 
           players: [
-            ...team,
+            ...team.players,
           ],
         }
 
@@ -1863,6 +2088,7 @@ if (
           evaluateCandidate(
             schedule,
             candidate,
+            team,
             target
           )
 
@@ -1895,6 +2121,41 @@ if (
   // =========================================================
   // 最終評価
   // =========================================================
+
+  const calculateDuplicateScore = (
+    schedule: Game[]
+  ) => {
+    const teamCounts =
+      getTeamCounts(schedule)
+
+    return Object.values(
+      teamCounts
+    ).reduce(
+      (
+        duplicateScore,
+        count
+      ) => {
+        if (count === 2) {
+          return duplicateScore + 1
+        }
+
+        if (count === 3) {
+          return duplicateScore + 10
+        }
+
+        if (count >= 4) {
+          return (
+            duplicateScore +
+            40 +
+            (count - 4) * 40
+          )
+        }
+
+        return duplicateScore
+      },
+      0
+    )
+  }
 
   const finalScore = (
     schedule: Game[],
@@ -2155,46 +2416,13 @@ schedule.forEach(
   }
 )
 
-// =======================================================
-// ⑧ 5人組
-// =======================================================
-    const teamCounts =
-      getTeamCounts(
-        schedule
-      )
-
-Object.values(
-  teamCounts
-).forEach(
-  (count) => {
-    if (
-      count === 2
-    ) {
-      score +=
-        300
+    return {
+      primary: score,
+      duplicate:
+        calculateDuplicateScore(
+          schedule
+        ),
     }
-
-    if (
-      count === 3
-    ) {
-      score +=
-        1000
-    }
-
-    if (
-      count >= 4
-    ) {
-      score +=
-        2000 +
-        (
-          count -
-          4
-        ) *
-        2000
-    }
-  }
-)
-    return score
   }
 
   // =========================================================
@@ -2299,8 +2527,14 @@ setIsGenerating(
         Game[] | null =
         null
 
-      let globalBestScore =
+      let globalBestPrimary =
         Infinity
+
+      let globalBestDuplicate =
+        Infinity
+
+      const allTeams =
+        getTeamCandidates()
 
       const {
         targetAttempts,
@@ -2325,7 +2559,8 @@ setIsGenerating(
         ) {
           const result =
             generateOne(
-              target
+              target,
+              allTeams
             )
 
           if (!result) {
@@ -2338,32 +2573,51 @@ setIsGenerating(
               target
             )
 
-          const tolerance =
-            50000
+          const primaryTolerance =
+            500
 
           if (
-            score <
-            globalBestScore -
-            tolerance
+            score.primary <
+            globalBestPrimary -
+            primaryTolerance
           ) {
-            globalBestScore =
-              score
+            globalBestPrimary =
+              score.primary
+
+            globalBestDuplicate =
+              score.duplicate
 
             globalBest =
               result
           } else if (
             Math.abs(
-              score -
-              globalBestScore
+              score.primary -
+              globalBestPrimary
             ) <=
-            tolerance
+            primaryTolerance
           ) {
             if (
-              Math.random() <
-              0.35
+              score.duplicate <
+              globalBestDuplicate
             ) {
-              globalBestScore =
-                score
+              globalBestPrimary =
+                score.primary
+
+              globalBestDuplicate =
+                score.duplicate
+
+              globalBest =
+                result
+            } else if (
+              score.duplicate ===
+                globalBestDuplicate &&
+              Math.random() < 0.35
+            ) {
+              globalBestPrimary =
+                score.primary
+
+              globalBestDuplicate =
+                score.duplicate
 
               globalBest =
                 result
@@ -2539,6 +2793,13 @@ const shareResult = async () => {
   }
 }
 
+  const addPlayerDisabled =
+    !name.trim() ||
+    (
+      usePositions &&
+      !position
+    )
+
   // =========================================================
   // JSX
   // =========================================================
@@ -2560,32 +2821,30 @@ const shareResult = async () => {
           --- 参加者登録 ---
         </h2>
 
-<div className="position-mode">
+        <div className="position-mode">
+          <label>
+            <input
+              type="checkbox"
+              checked={usePositions}
+              onChange={(e) => {
+                setUsePositions(
+                  e.target.checked
+                )
+                setPosition('')
+                setInputError('')
+                setGames([])
+              }}
+            />
 
-  <label>
-    <input
-      type="checkbox"
-      checked={usePositions}
-      onChange={(e) => {
-        const checked =
-          e.target.checked
+            ポジション設定を使う
+          </label>
 
-        setUsePositions(
-          checked
-        )
-
-        if (!checked) {
-          setPosition('')
-          setPositions({})
-          setGames([])
-        }
-      }}
-    />
-
-    ポジション設定を使う
-  </label>
-
-</div>
+          {usePositions && (
+            <p className="position-help">
+              ONの場合は全員にG・F・Cを設定してください
+            </p>
+          )}
+        </div>
 
         <div className="input-area">
 
@@ -2593,11 +2852,12 @@ const shareResult = async () => {
             value={
               name
             }
-            onChange={(e) =>
+            onChange={(e) => {
               setName(
                 e.target.value
               )
-            }
+              setInputError('')
+            }}
             onKeyDown={(e) => {
               if (
                 e.key ===
@@ -2609,42 +2869,59 @@ const shareResult = async () => {
             placeholder="参加者の名前"
             maxLength={10}
           />
-{usePositions && (
-  <select
-    value={position}
-    onChange={(e) =>
-      setPosition(
-        e.target.value as Position
-      )
-    }
-  >
-    <option value="">
-      ポジション
-    </option>
 
-    <option value="G">
-      G
-    </option>
-
-    <option value="F">
-      F
-    </option>
-
-    <option value="C">
-      C
-    </option>
-  </select>
-)}
+          {usePositions && (
+            <div
+              className="position-picker"
+              aria-label="新しい参加者のポジション"
+            >
+              {(['G', 'F', 'C'] as const).map(
+                (value) => (
+                  <button
+                    type="button"
+                    className={
+                      position === value
+                        ? 'position-button selected'
+                        : 'position-button'
+                    }
+                    aria-pressed={
+                      position === value
+                    }
+                    key={value}
+                    onClick={() => {
+                      setPosition(value)
+                      setInputError('')
+                    }}
+                  >
+                    {value}
+                  </button>
+                )
+              )}
+            </div>
+          )}
 
           <button
+            className="add-player-button"
             onClick={
               addPlayer
+            }
+            disabled={
+              addPlayerDisabled
             }
           >
             追加
           </button>
 
         </div>
+
+        {inputError && (
+          <p
+            className="input-error"
+            role="alert"
+          >
+            {inputError}
+          </p>
+        )}
 
         <p>
           参加者：
@@ -2669,17 +2946,101 @@ const shareResult = async () => {
                 }
               >
 
-<span>
-  {player}
+                {editingPlayer === player ? (
+                  <div className="player-name-editor">
+                    <input
+                      value={editingName}
+                      maxLength={10}
+                      aria-label={`${player}の名前を編集`}
+                      onChange={(e) => {
+                        setEditingName(
+                          e.target.value
+                        )
+                        setEditError('')
+                      }}
+                      onKeyDown={(e) => {
+                        if (e.key === 'Enter') {
+                          saveEditedPlayer()
+                        }
 
-  {positions[player] && (
-    <strong>
-      {' '}
-      （{positions[player]}）
-    </strong>
-  )}
-</span>
+                        if (e.key === 'Escape') {
+                          cancelEditingPlayer()
+                        }
+                      }}
+                    />
+
+                    <button
+                      className="save-name-button"
+                      onClick={saveEditedPlayer}
+                    >
+                      保存
+                    </button>
+
+                    <button
+                      className="cancel-name-button"
+                      onClick={cancelEditingPlayer}
+                    >
+                      戻る
+                    </button>
+
+                    {editError && (
+                      <span
+                        className="edit-error"
+                        role="alert"
+                      >
+                        {editError}
+                      </span>
+                    )}
+                  </div>
+                ) : (
+                  <button
+                    className="player-name player-name-button"
+                    onClick={() =>
+                      startEditingPlayer(player)
+                    }
+                    aria-label={`${player}の名前を編集`}
+                  >
+                    {player}
+                  </button>
+                )}
+
+                {usePositions &&
+                  editingPlayer !== player && (
+                  <div
+                    className="position-picker player-position-picker"
+                    aria-label={`${player}のポジション`}
+                  >
+                    {(['G', 'F', 'C'] as const).map(
+                      (value) => (
+                        <button
+                          type="button"
+                          className={
+                            positions[player] === value
+                              ? 'position-button selected'
+                              : 'position-button'
+                          }
+                          aria-pressed={
+                            positions[player] === value
+                          }
+                          key={value}
+                          onClick={() =>
+                            updatePlayerPosition(
+                              player,
+                              value
+                            )
+                          }
+                        >
+                          {value}
+                        </button>
+                      )
+                    )}
+                  </div>
+                )}
+
+                {editingPlayer !== player && (
                 <button
+                  className="remove-player-button"
+                  aria-label={`${player}を削除`}
                   onClick={() =>
                     removePlayer(
                       index
@@ -2688,12 +3049,22 @@ const shareResult = async () => {
                 >
                   削除
                 </button>
+                )}
 
               </li>
             )
           )}
 
         </ul>
+
+        {players.length > 0 && (
+          <button
+            className="clear-players-button"
+            onClick={clearPlayers}
+          >
+            参加者を全員削除
+          </button>
+        )}
 
       </section>
 
@@ -2878,6 +3249,63 @@ const shareResult = async () => {
               📊 出場状況 📊
             </h2>
 
+            <div className="result-actions share-buttons">
+              <button
+                className="share-button"
+                onClick={shareResult}
+              >
+                📤 結果を共有
+              </button>
+
+              <button
+                className="copy-button"
+                onClick={copyResult}
+              >
+                📋 結果をコピー
+              </button>
+            </div>
+
+            <div
+              className="result-tabs"
+              role="tablist"
+              aria-label="出場状況の表示切替"
+            >
+              <button
+                role="tab"
+                aria-selected={
+                  resultView === 'games'
+                }
+                className={
+                  resultView === 'games'
+                    ? 'result-tab active'
+                    : 'result-tab'
+                }
+                onClick={() =>
+                  setResultView('games')
+                }
+              >
+                試合別
+              </button>
+
+              <button
+                role="tab"
+                aria-selected={
+                  resultView === 'summary'
+                }
+                className={
+                  resultView === 'summary'
+                    ? 'result-tab active'
+                    : 'result-tab'
+                }
+                onClick={() =>
+                  setResultView('summary')
+                }
+              >
+                集計
+              </button>
+            </div>
+
+            {resultView === 'games' && (
             <div className="legend">
 
               <span>
@@ -2897,10 +3325,23 @@ const shareResult = async () => {
               </span>
 
             </div>
+            )}
 
-            <div className="table-wrapper">
+            <div
+              className={
+                resultView === 'summary'
+                  ? 'table-wrapper summary-table-wrapper'
+                  : 'table-wrapper'
+              }
+            >
 
-              <table className="attendance-table">
+              <table
+                className={
+                  resultView === 'summary'
+                    ? 'attendance-table summary-table'
+                    : 'attendance-table'
+                }
+              >
 
                 <thead>
 
@@ -2910,7 +3351,7 @@ const shareResult = async () => {
                       参加者
                     </th>
 
-                    {games.map(
+                    {resultView === 'games' && games.map(
                       (game) => (
 
                         <th
@@ -2927,33 +3368,26 @@ const shareResult = async () => {
                       )
                     )}
 
-                    <th>
-                      出場
-                    </th>
-
-                    <th>
-                      休憩
-                    </th>
-
-<th style={{ lineHeight: '1.05' }}>
-  最大
-  <br />
-  連続
-    <br />
-  出場
-</th>
-
-<th style={{ lineHeight: '1.05' }}>
-  最大
-  <br />
-  連続
-  <br />  
-  休憩
-</th>
-
-                    <th>
-                      3連続以上
-                    </th>
+                    {resultView === 'summary' && (
+                      <>
+                        <th>出場</th>
+                        <th>休憩</th>
+                        <th>
+                          最大
+                          <br />
+                          連続
+                          <br />
+                          出場
+                        </th>
+                        <th>
+                          最大
+                          <br />
+                          連続
+                          <br />
+                          休憩
+                        </th>
+                      </>
+                    )}
 
                   </tr>
 
@@ -2983,9 +3417,16 @@ const shareResult = async () => {
                                 player
                               }
                             </strong>
+
+                            {usePositions &&
+                              positions[player] && (
+                                <span className="position-badge table-position-badge">
+                                  {positions[player]}
+                                </span>
+                              )}
                           </td>
 
-                          {games.map(
+                          {resultView === 'games' && games.map(
                             (
                               game,
                               index
@@ -3054,35 +3495,14 @@ const shareResult = async () => {
                             }
                           )}
 
-                          <td>
-                            {
-                              s.plays
-                            }
-                          </td>
-
-                          <td>
-                            {
-                              s.rests
-                            }
-                          </td>
-
-                          <td>
-                            {
-                              s.maxPlayStreak
-                            }
-                          </td>
-
-                          <td>
-                            {
-                              s.maxRestStreak
-                            }
-                          </td>
-
-                          <td>
-                            {
-                              s.threePlus
-                            }
-                          </td>
+                          {resultView === 'summary' && (
+                            <>
+                              <td>{s.plays}</td>
+                              <td>{s.rests}</td>
+                              <td>{s.maxPlayStreak}</td>
+                              <td>{s.maxRestStreak}</td>
+                            </>
+                          )}
 
                         </tr>
 
@@ -3189,6 +3609,13 @@ const shareResult = async () => {
                             {
                               player
                             }
+
+                            {usePositions &&
+                              positions[player] && (
+                                <span className="position-badge">
+                                  {positions[player]}
+                                </span>
+                              )}
                           </span>
 
                         )

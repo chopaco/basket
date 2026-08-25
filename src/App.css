@@ -44,6 +44,9 @@ button {
    ========================================================= */
 
 .app {
+  display: flex;
+  flex-direction: column;
+
   width: 100%;
   max-width: 1200px;
   margin: 0 auto;
@@ -157,6 +160,22 @@ h2 {
   transform: translateY(1px);
 }
 
+.input-area .add-player-button:disabled {
+  cursor: not-allowed;
+  opacity: 0.45;
+}
+
+.input-area .add-player-button:disabled:hover {
+  background: #333;
+}
+
+.input-error {
+  margin: -6px 0 10px;
+  color: #b42318;
+  font-size: 13px;
+  text-align: center;
+}
+
 /* =========================================================
    参加者人数
    ========================================================= */
@@ -223,6 +242,171 @@ h2 {
 
 .player-list li button:hover {
   background: #d2d6db;
+}
+
+.position-mode label {
+  min-height: 44px;
+  margin-bottom: 12px;
+  font-weight: 600;
+}
+
+.position-mode input {
+  width: 20px;
+  height: 20px;
+}
+
+.position-help {
+  margin: -8px 0 12px;
+  color: #667085;
+  font-size: 12px;
+  text-align: center;
+}
+
+.position-picker {
+  display: flex;
+  gap: 5px;
+  flex: 0 0 auto;
+}
+
+.input-area .position-button,
+.player-list .position-button {
+  width: 42px;
+  min-height: 42px;
+  padding: 0;
+
+  border: 1px solid #b9c2cc;
+  border-radius: 8px;
+
+  background: #fff;
+  color: #46515c;
+
+  font-weight: 700;
+}
+
+.input-area .position-button:hover,
+.player-list .position-button:hover {
+  background: #eef5fc;
+  border-color: #1976d2;
+}
+
+.input-area .position-button.selected,
+.player-list .position-button.selected {
+  background: #1976d2;
+  border-color: #1976d2;
+  color: #fff;
+}
+
+.player-list {
+  flex-direction: column;
+  flex-wrap: nowrap;
+  max-width: 620px;
+  margin: 0 auto;
+}
+
+.player-list li {
+  width: 100%;
+  min-height: 54px;
+  padding: 6px 8px 6px 12px;
+}
+
+.player-list .player-name {
+  flex: 1 1 auto;
+  max-width: none;
+  font-weight: 600;
+}
+
+.player-list .player-name-button {
+  min-height: 42px;
+  padding: 0 8px;
+  border: 1px solid transparent;
+  background: transparent;
+  color: #222;
+  text-align: left;
+}
+
+.player-list .player-name-button:hover {
+  border-color: #b9cde0;
+  background: #eef5fb;
+}
+
+.player-name-editor {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) auto auto;
+  gap: 5px;
+  width: 100%;
+}
+
+.player-name-editor input {
+  min-width: 0;
+  min-height: 40px;
+  padding: 7px 9px;
+  border: 1px solid #1976d2;
+  border-radius: 7px;
+}
+
+.player-list .save-name-button,
+.player-list .cancel-name-button {
+  min-height: 40px;
+  padding: 0 10px;
+}
+
+.player-list .save-name-button {
+  background: #1976d2;
+  color: #fff;
+}
+
+.edit-error {
+  grid-column: 1 / -1;
+  color: #b42318;
+  font-size: 12px;
+}
+
+.player-list .remove-player-button {
+  min-height: 42px;
+  padding: 0 12px;
+  color: #a12828;
+}
+
+.clear-players-button {
+  display: block;
+  min-height: 44px;
+  margin: 14px auto 0;
+  padding: 8px 14px;
+
+  border: 1px solid #d7a9a9;
+  border-radius: 8px;
+
+  background: #fff;
+  color: #a12828;
+}
+
+.clear-players-button:hover {
+  background: #fff2f2;
+}
+
+.position-badge {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+
+  min-width: 22px;
+  height: 22px;
+  margin-left: 5px;
+  padding: 0 5px;
+
+  border-radius: 999px;
+  background: #1976d2;
+  color: #fff;
+
+  font-size: 11px;
+  font-weight: 700;
+  line-height: 1;
+}
+
+.table-position-badge {
+  display: flex;
+  width: fit-content;
+  margin: 4px auto 0;
 }
 
 /* =========================================================
@@ -295,6 +479,7 @@ h2 {
    ========================================================= */
 
 .history-card {
+  order: 10;
   overflow: hidden;
 }
 
@@ -447,6 +632,34 @@ h2 {
   white-space: nowrap;
 }
 
+.summary-table {
+  width: 100%;
+  min-width: 340px;
+  table-layout: fixed;
+}
+
+.summary-table-wrapper {
+  max-width: 460px;
+  margin-right: auto;
+  margin-left: auto;
+}
+
+.summary-table th:first-child,
+.summary-table td:first-child {
+  width: 76px;
+}
+
+.summary-table th:not(:first-child),
+.summary-table td:not(:first-child) {
+  width: calc((100% - 76px) / 4);
+  padding-right: 4px;
+  padding-left: 4px;
+}
+
+.summary-table th {
+  line-height: 1.15;
+}
+
 .attendance-table th,
 .attendance-table td {
   padding: 8px 10px;
@@ -480,6 +693,44 @@ h2 {
   z-index: 4;
 }
 
+.result-tabs {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 4px;
+  max-width: 360px;
+  margin: 0 auto 14px;
+  padding: 4px;
+  border-radius: 10px;
+  background: #edf1f5;
+}
+
+.result-tab {
+  min-height: 42px;
+  border: none;
+  border-radius: 7px;
+  background: transparent;
+  color: #52606d;
+  font-weight: 700;
+}
+
+.result-tab.active {
+  background: #fff;
+  color: #1976d2;
+  box-shadow: 0 1px 4px rgba(0, 0, 0, 0.12);
+}
+
+.attendance-table tbody tr:nth-child(odd) td {
+  background: #fff;
+}
+
+.attendance-table tbody tr:nth-child(even) td {
+  background: #eef5fb;
+}
+
+.attendance-table tbody tr:hover td {
+  background: #e3f0fa;
+}
+
 /* =========================================================
    出場 / 休憩
    ========================================================= */
@@ -494,12 +745,10 @@ h2 {
 
 .attendance-table td.streak-three {
   font-weight: 700;
-  background: #fff3cd;
 }
 
 .attendance-table td.streak-four {
   font-weight: 700;
-  background: #f8d7da;
 }
 
 /* =========================================================
@@ -822,5 +1071,73 @@ h2 {
   .share-buttons button {
     padding: 8px 11px;
     font-size: 13px;
+  }
+
+  .input-area {
+    flex-direction: column;
+    align-items: stretch;
+    max-width: 360px;
+  }
+
+  .input-area input {
+    width: 100%;
+    max-width: none;
+    min-height: 44px;
+  }
+
+  .input-area .position-picker {
+    display: grid;
+    grid-template-columns: repeat(3, 1fr);
+  }
+
+  .input-area .position-button {
+    width: 100%;
+  }
+
+  .input-area .add-player-button {
+    width: 100%;
+    min-height: 44px;
+  }
+
+  .player-list li {
+    flex-wrap: nowrap;
+    min-height: 48px;
+    padding: 4px 5px 4px 10px;
+  }
+
+  .player-list .player-name {
+    flex: 1 1 auto;
+    min-width: 54px;
+    max-width: none;
+  }
+
+  .player-position-picker {
+    order: initial;
+    display: flex;
+    width: auto;
+    gap: 3px;
+  }
+
+  .player-list .position-button {
+    width: 36px;
+    min-height: 38px;
+    border-radius: 7px;
+  }
+
+  .player-list .remove-player-button {
+    order: initial;
+    min-height: 38px;
+    padding: 0 8px;
+    font-size: 12px;
+  }
+}
+
+@media (max-width: 360px) {
+  .player-list .position-button {
+    width: 33px;
+  }
+
+  .player-list .remove-player-button {
+    padding: 0 6px;
   }
 }
