@@ -2949,18 +2949,23 @@ const shareResult = async () => {
                 {editingPlayer === player ? (
                   <div className="player-name-editor">
                     <input
+                      autoFocus
                       value={editingName}
                       maxLength={10}
                       aria-label={`${player}の名前を編集`}
+                      onFocus={(e) => {
+                        e.currentTarget.select()
+                      }}
                       onChange={(e) => {
                         setEditingName(
                           e.target.value
                         )
                         setEditError('')
                       }}
+                      onBlur={saveEditedPlayer}
                       onKeyDown={(e) => {
                         if (e.key === 'Enter') {
-                          saveEditedPlayer()
+                          e.currentTarget.blur()
                         }
 
                         if (e.key === 'Escape') {
@@ -2968,20 +2973,6 @@ const shareResult = async () => {
                         }
                       }}
                     />
-
-                    <button
-                      className="save-name-button"
-                      onClick={saveEditedPlayer}
-                    >
-                      保存
-                    </button>
-
-                    <button
-                      className="cancel-name-button"
-                      onClick={cancelEditingPlayer}
-                    >
-                      戻る
-                    </button>
 
                     {editError && (
                       <span
