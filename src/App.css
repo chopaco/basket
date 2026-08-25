@@ -463,6 +463,61 @@ h2 {
    計算中メッセージ
    ========================================================= */
 
+.loading-overlay {
+  position: fixed;
+  inset: 0;
+  z-index: 9999;
+
+  display: grid;
+  place-items: center;
+
+  padding: 24px;
+  overflow: hidden;
+  touch-action: none;
+
+  background: rgba(5, 19, 34, 0.82);
+}
+
+.loading-content {
+  display: grid;
+  justify-items: center;
+  gap: 16px;
+
+  min-width: 150px;
+  padding: 24px 30px;
+
+  border: 1px solid rgba(255, 255, 255, 0.24);
+  border-radius: 18px;
+  background: rgba(4, 18, 32, 0.48);
+  box-shadow: 0 12px 36px rgba(0, 0, 0, 0.24);
+  backdrop-filter: blur(5px);
+}
+
+.loading-spinner {
+  width: 52px;
+  height: 52px;
+
+  border: 5px solid rgba(255, 255, 255, 0.3);
+  border-top-color: #fff;
+  border-radius: 50%;
+
+  animation: loading-spin 0.8s linear infinite;
+}
+
+.loading-content p {
+  margin: 0;
+  color: #fff;
+  font-size: 17px;
+  font-weight: 700;
+  letter-spacing: 0.08em;
+}
+
+@keyframes loading-spin {
+  to {
+    transform: rotate(360deg);
+  }
+}
+
 .card > p {
   line-height: 1.6;
 }

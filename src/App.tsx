@@ -307,6 +307,18 @@ const [positions, setPositions] =
   const [isGenerating, setIsGenerating] =
     useState(false)
 
+  useEffect(() => {
+    if (!isGenerating) return
+
+    const previousOverflow =
+      document.body.style.overflow
+    document.body.style.overflow = 'hidden'
+
+    return () => {
+      document.body.style.overflow = previousOverflow
+    }
+  }, [isGenerating])
+
 useEffect(() => {
   try {
     localStorage.setItem(
@@ -2554,7 +2566,7 @@ setIsGenerating(
   true
 )
 
-    setTimeout(() => {
+    const runMainThreadFallback = () => {
       let globalBest:
         Game[] | null =
         null
@@ -2677,7 +2689,61 @@ setIsGenerating(
       setIsGenerating(
         false
       )
-    }, 20)
+    }
+
+    try {
+      const worker = new Worker(
+        new URL(
+          './generator.worker.ts',
+          import.meta.url
+        ),
+        { type: 'module' }
+      )
+
+      worker.onmessage = (
+        event: MessageEvent<{
+          type: 'complete' | 'error'
+          games?: Game[]
+          message?: string
+        }>
+      ) => {
+        if (
+          event.data.type === 'complete' &&
+          event.data.games
+        ) {
+          setGames(event.data.games)
+          saveHistory(event.data.games)
+        } else {
+          alert(
+            event.data.message ||
+              '条件を満たす組み合わせを作成できませんでした。もう一度生成してください。'
+          )
+        }
+
+        worker.terminate()
+        setIsGenerating(false)
+      }
+
+      worker.onerror = () => {
+        worker.terminate()
+        setTimeout(
+          runMainThreadFallback,
+          20
+        )
+      }
+
+      worker.postMessage({
+        players,
+        gameCount,
+        usePositions,
+        positions,
+      })
+    } catch {
+      setTimeout(
+        runMainThreadFallback,
+        20
+      )
+    }
   }
 
   // =========================================================
@@ -2837,7 +2903,27 @@ const shareResult = async () => {
   // =========================================================
 
   return (
-    <div className="app">
+    <div
+      className="app"
+      aria-busy={isGenerating}
+    >
+
+      {isGenerating && (
+        <div
+          className="loading-overlay"
+          role="status"
+          aria-live="polite"
+          aria-label="メンバーを計算中"
+        >
+          <div className="loading-content">
+            <span
+              className="loading-spinner"
+              aria-hidden="true"
+            />
+            <p>計算中</p>
+          </div>
+        </div>
+      )}
 
       <h1>
         🏀チーム作成🏀
