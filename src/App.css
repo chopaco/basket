@@ -346,8 +346,12 @@ h2 {
 
 .edit-error {
   grid-column: 1 / -1;
+  max-width: none;
+  overflow: visible;
   color: #b42318;
   font-size: 12px;
+  line-height: 1.4;
+  white-space: nowrap;
 }
 
 .player-list .remove-player-button {

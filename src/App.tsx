@@ -54,6 +54,8 @@ type History = {
 const TEAM_SIZE = 5
 const MIN_PLAYERS = 6
 const MAX_PLAYERS = 12
+const MIN_GAMES = 1
+const MAX_GAMES = 16
 const MAX_HISTORY = 3
 
 const PLAYERS_STORAGE_KEY = 'team-maker-players'
@@ -128,7 +130,15 @@ const loadSavedGameCount = () => {
     const saved = localStorage.getItem(GAME_COUNT_STORAGE_KEY)
     const parsed = Number(saved)
 
-    return parsed >= 1 ? parsed : 16
+    return Number.isFinite(parsed)
+      ? Math.min(
+          MAX_GAMES,
+          Math.max(
+            MIN_GAMES,
+            Math.trunc(parsed)
+          )
+        )
+      : MAX_GAMES
   } catch {
     return 16
   }
@@ -271,7 +281,13 @@ const [positions, setPositions] =
     useState<number>(
       () =>
         sharedData
-          ? sharedData.games.length
+          ? Math.min(
+              MAX_GAMES,
+              Math.max(
+                MIN_GAMES,
+                sharedData.games.length
+              )
+            )
           : loadSavedGameCount()
     )
 
@@ -439,6 +455,14 @@ setGames([])
   const startEditingPlayer = (
     player: string
   ) => {
+    if (
+      editingPlayer &&
+      editingPlayer !== player &&
+      !saveEditedPlayer()
+    ) {
+      return
+    }
+
     setEditingPlayer(player)
     setEditingName(player)
     setEditError('')
@@ -450,9 +474,9 @@ setGames([])
     setEditError('')
   }
 
-  const saveEditedPlayer = () => {
+  function saveEditedPlayer(): boolean {
     if (!editingPlayer) {
-      return
+      return true
     }
 
     const nextName =
@@ -460,9 +484,9 @@ setGames([])
 
     if (!nextName) {
       setEditError(
-        '名前を入力してください'
+        '入力必須です'
       )
-      return
+      return false
     }
 
     if (
@@ -470,9 +494,9 @@ setGames([])
       players.includes(nextName)
     ) {
       setEditError(
-        '同じ名前が登録されています'
+        '重複しています'
       )
-      return
+      return false
     }
 
     if (nextName !== editingPlayer) {
@@ -522,6 +546,7 @@ setGames([])
     }
 
     cancelEditingPlayer()
+    return true
   }
 
   const removePlayer = (
@@ -654,7 +679,13 @@ setGames([])
     ])
 
     setGameCount(
-      item.gameCount
+      Math.min(
+        MAX_GAMES,
+        Math.max(
+          MIN_GAMES,
+          item.gameCount
+        )
+      )
     )
 
     setUsePositions(
@@ -2487,10 +2518,11 @@ schedule.forEach(
     }
 
 if (
-  gameCount < 1
+  gameCount < MIN_GAMES ||
+  gameCount > MAX_GAMES
 ) {
   alert(
-    '試合数を1以上にしてください'
+    `試合数は${MIN_GAMES}～${MAX_GAMES}にしてください`
   )
 
   return
@@ -3075,16 +3107,20 @@ const shareResult = async () => {
 
           <input
             type="number"
-            min="1"
+            min={MIN_GAMES}
+            max={MAX_GAMES}
             value={
               gameCount
             }
             onChange={(e) =>
               setGameCount(
-                Math.max(
-                  1,
-                  Number(
-                    e.target.value
+                Math.min(
+                  MAX_GAMES,
+                  Math.max(
+                    MIN_GAMES,
+                    Number(
+                      e.target.value
+                    )
                   )
                 )
               )
