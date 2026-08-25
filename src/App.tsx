@@ -6,9 +6,17 @@ type Game = {
   players: string[]
 }
 
+type Position = 'G' | 'F' | 'C' | ''
+
+
 type ShareData = {
   players: string[]
   games: Game[]
+  usePositions: boolean
+  positions: Record<
+    string,
+    Position
+  >
 }
 
 type Stats = {
@@ -29,13 +37,17 @@ type History = {
 
 const TEAM_SIZE = 5
 const MIN_PLAYERS = 6
-const MAX_PLAYERS = 9
+const MAX_PLAYERS = 12
 const MAX_HISTORY = 3
 
 const PLAYERS_STORAGE_KEY = 'team-maker-players'
 const GAME_COUNT_STORAGE_KEY = 'team-maker-game-count'
 const CURRENT_GAMES_STORAGE_KEY = 'team-maker-current-games'
 const HISTORY_STORAGE_KEY = 'team-maker-history'
+const POSITIONS_STORAGE_KEY =
+  'team-maker-positions'
+const USE_POSITIONS_STORAGE_KEY =
+  'team-maker-use-positions'
 
 // =========================================================
 // localStorage
@@ -50,6 +62,48 @@ const loadSavedPlayers = (): string[] => {
     return Array.isArray(parsed) ? parsed : []
   } catch {
     return []
+  }
+}
+
+const loadSavedPositions = (): Record<
+  string,
+  Position
+> => {
+  try {
+    const saved =
+      localStorage.getItem(
+        POSITIONS_STORAGE_KEY
+      )
+
+    if (!saved) return {}
+
+    const parsed =
+      JSON.parse(saved)
+
+    if (
+      typeof parsed !==
+        'object' ||
+      parsed === null
+    ) {
+      return {}
+    }
+
+    return parsed
+  } catch {
+    return {}
+  }
+}
+
+const loadSavedUsePositions = () => {
+  try {
+    const saved =
+      localStorage.getItem(
+        USE_POSITIONS_STORAGE_KEY
+      )
+
+    return saved === 'true'
+  } catch {
+    return false
   }
 }
 
@@ -105,6 +159,22 @@ function App() {
   const [name, setName] =
     useState('')
 
+const [
+  usePositions,
+  setUsePositions,
+] = useState(
+  loadSavedUsePositions
+)
+
+const [position, setPosition] =
+  useState<Position>('')
+
+const [positions, setPositions] =
+  useState<
+    Record<string, Position>
+  >(
+    loadSavedPositions
+  )
   const [players, setPlayers] =
     useState<string[]>(
       loadSavedPlayers
@@ -175,12 +245,43 @@ useEffect(() => {
     setGameCount(
       data.games.length
     )
+
+    setUsePositions(
+  data.usePositions === true
+)
+
+setPositions(
+  data.positions || {}
+)
+
   } catch {
     alert(
       '共有された結果を読み込めませんでした'
     )
   }
 }, [])
+
+useEffect(() => {
+  try {
+    localStorage.setItem(
+      POSITIONS_STORAGE_KEY,
+      JSON.stringify(positions)
+    )
+  } catch {
+    // 保存できなくても続行
+  }
+}, [positions])
+
+useEffect(() => {
+  try {
+    localStorage.setItem(
+      USE_POSITIONS_STORAGE_KEY,
+      String(usePositions)
+    )
+  } catch {
+    // 保存できなくても続行
+  }
+}, [usePositions])
 
   // =========================================================
   // 自動保存
@@ -258,25 +359,43 @@ useEffect(() => {
 
     if (!value) return
 
+if (
+  usePositions &&
+  !position
+) {
+  alert(
+    'ポジションを選択してください'
+  )
+  return
+}
+
     if (players.includes(value)) {
       alert('同じ名前が登録されています')
       return
     }
 
-    if (players.length >= MAX_PLAYERS) {
-      alert(
-        `現在の9.4版は最大${MAX_PLAYERS}人まで対応しています`
-      )
-      return
-    }
+if (players.length >= MAX_PLAYERS) {
+  alert(
+    `現在の9.5版は最大${MAX_PLAYERS}人まで対応しています`
+  )
+  return
+}
 
-    setPlayers([
-      ...players,
-      value,
-    ])
+setPlayers([
+  ...players,
+  value,
+])
 
-    setName('')
-    setGames([])
+if (usePositions) {
+  setPositions({
+    ...positions,
+    [value]: position,
+  })
+}
+
+setName('')
+setPosition('')
+setGames([])
   }
 
   const removePlayer = (
@@ -906,9 +1025,274 @@ useEffect(() => {
     return penalty
   }
 
-  // =========================================================
-  // 候補評価
-  // =========================================================
+// =========================================================
+// 候補評価
+// =========================================================
+
+const calculatePositionPenalty = (
+  team: string[],
+  target?: Record<
+    string,
+    number
+  >
+) => {
+  // ポジション設定を使わない場合は
+  // ポジション評価を完全に無効化
+  if (!usePositions) {
+    return 0
+  }
+
+  const poolCounts = {
+    G: 0,
+    F: 0,
+    C: 0,
+  }
+
+  players.forEach(
+    (player) => {
+      const pos =
+        positions[player]
+
+      if (pos === 'G') {
+        poolCounts.G++
+      }
+
+      if (pos === 'F') {
+        poolCounts.F++
+      }
+
+      if (pos === 'C') {
+        poolCounts.C++
+      }
+    }
+  )
+
+  const teamCounts = {
+    G: 0,
+    F: 0,
+    C: 0,
+  }
+
+  team.forEach(
+    (player) => {
+      const pos =
+        positions[player]
+
+      if (pos === 'G') {
+        teamCounts.G++
+      }
+
+      if (pos === 'F') {
+        teamCounts.F++
+      }
+
+      if (pos === 'C') {
+        teamCounts.C++
+      }
+    }
+  )
+
+  // =======================================================
+  // そのポジションの
+  // 目標出場回数合計
+  // =======================================================
+
+  const getTargetPlaysByPosition = (
+    pos: 'G' | 'F' | 'C'
+  ) => {
+    if (!target) {
+      return 0
+    }
+
+    return players
+      .filter(
+        (player) =>
+          positions[player] ===
+          pos
+      )
+      .reduce(
+        (
+          sum,
+          player
+        ) =>
+          sum +
+          target[player],
+        0
+      )
+  }
+
+  // =======================================================
+  // 最低1名を全試合で維持可能か
+  // =======================================================
+
+  const canKeepMinOne = (
+    pos: 'G' | 'F' | 'C'
+  ) => {
+    if (
+      poolCounts[pos] === 0
+    ) {
+      return false
+    }
+
+    if (!target) {
+      return true
+    }
+
+    const requiredPlays =
+      getTargetPlaysByPosition(
+        pos
+      )
+
+    return (
+      requiredPlays >=
+      gameCount
+    )
+  }
+
+  // =======================================================
+  // 最大2名を全試合で維持可能か
+  // =======================================================
+
+  const canKeepMaxTwo = (
+    pos: 'G' | 'F' | 'C'
+  ) => {
+    if (!target) {
+      return true
+    }
+
+    const requiredPlays =
+      getTargetPlaysByPosition(
+        pos
+      )
+
+    const maxAvailable =
+      gameCount * 2
+
+    return (
+      requiredPlays <=
+      maxAvailable
+    )
+  }
+
+  const enforceMinG =
+    canKeepMinOne('G')
+
+  const enforceMinF =
+    canKeepMinOne('F')
+
+  const enforceMinC =
+    canKeepMinOne('C')
+
+  const enforceMaxG =
+    canKeepMaxTwo('G')
+
+  const enforceMaxF =
+    canKeepMaxTwo('F')
+
+  const enforceMaxC =
+    canKeepMaxTwo('C')
+
+  let penalty = 0
+
+  // =======================================================
+  // 最低1名
+  //
+  // 実現可能なら強く優先
+  // =======================================================
+
+  if (
+    enforceMinG &&
+    teamCounts.G === 0
+  ) {
+    penalty += 100000
+  }
+
+  if (
+    enforceMinF &&
+    teamCounts.F === 0
+  ) {
+    penalty += 100000
+  }
+
+  if (
+    enforceMinC &&
+    teamCounts.C === 0
+  ) {
+    penalty += 100000
+  }
+
+  // =======================================================
+  // 最大2名
+  //
+  // 実現可能なら優先
+  // =======================================================
+
+  if (
+    enforceMaxG &&
+    teamCounts.G > 2
+  ) {
+    penalty +=
+      (
+        teamCounts.G -
+        2
+      ) *
+      50000
+  }
+
+  if (
+    enforceMaxF &&
+    teamCounts.F > 2
+  ) {
+    penalty +=
+      (
+        teamCounts.F -
+        2
+      ) *
+      50000
+  }
+
+  if (
+    enforceMaxC &&
+    teamCounts.C > 2
+  ) {
+    penalty +=
+      (
+        teamCounts.C -
+        2
+      ) *
+      50000
+  }
+
+  // =======================================================
+  // 最大2名を維持できないポジション
+  //
+  // 4名以上になる極端な偏りだけ
+  // 軽く避ける
+  // =======================================================
+
+  if (
+    !enforceMaxG &&
+    teamCounts.G >= 4
+  ) {
+    penalty += 1000
+  }
+
+  if (
+    !enforceMaxF &&
+    teamCounts.F >= 4
+  ) {
+    penalty += 1000
+  }
+
+  if (
+    !enforceMaxC &&
+    teamCounts.C >= 4
+  ) {
+    penalty += 1000
+  }
+
+  return penalty
+}
 
   const evaluateCandidate = (
     schedule: Game[],
@@ -939,6 +1323,7 @@ useEffect(() => {
       )
 
     let score = 0
+
 
     // =======================================================
     // ① 出場回数
@@ -1043,7 +1428,7 @@ useEffect(() => {
 // その代わり、
 // 「6連続以上」を特に強く避ける。
 //
-// 7～9人については従来の評価を維持。
+// 7～12人については従来の評価を維持。
 // =======================================================
 
 players.forEach(
@@ -1157,7 +1542,7 @@ players.forEach(
     // =======================================================
     // ⑦ 最長休憩
     //
-    // 8～9人では連続休憩が必要になる場合もあるので
+    // 8～12人では連続休憩が必要になる場合もあるので
     // 「禁止」ではなく偏りを評価。
     // =======================================================
 
@@ -1271,17 +1656,36 @@ players.forEach(
       }
     }
 
-    if (
-      sameRestCount >= 2
-    ) {
-      score +=
-        80000
-    }
+if (
+  sameRestCount >= 2
+) {
+  score +=
+    80000
+}
 
-    // =======================================================
-    // ⑨ 5人組の重複
-    // =======================================================
+// =======================================================
+// ⑨ ポジションバランス
+//
+// 優先順位：
+// 出場回数
+// ＞ 連続出場
+// ＞ 連続休憩
+// ＞ ポジション
+// ＞＞＞ 5人組重複
+//
+// G / F / C が設定されている場合、
+// 可能なら各1～2名になるようにする。
+// =======================================================
 
+score +=
+  calculatePositionPenalty(
+    candidate.players,
+    target
+  )
+
+// =======================================================
+// ⑩ 5人組の重複
+// =======================================================
     const teamCounts =
       getTeamCounts(
         testSchedule
@@ -1297,31 +1701,31 @@ players.forEach(
         newTeamKey
       ] || 0
 
-    if (
-      newTeamCount === 2
-    ) {
-      score +=
-        8000
-    }
+if (
+  newTeamCount === 2
+) {
+  score +=
+    300
+}
 
-    if (
-      newTeamCount === 3
-    ) {
-      score +=
-        50000
-    }
+if (
+  newTeamCount === 3
+) {
+  score +=
+    1000
+}
 
-    if (
-      newTeamCount >= 4
-    ) {
-      score +=
-        150000 +
-        (
-          newTeamCount -
-          4
-        ) *
-        150000
-    }
+if (
+  newTeamCount >= 4
+) {
+  score +=
+    2000 +
+    (
+      newTeamCount -
+      4
+    ) *
+    2000
+}
 
     // =======================================================
     // ⑩ 直前と完全に同じ5人
@@ -1343,7 +1747,7 @@ players.forEach(
         newTeamKey
       ) {
         score +=
-          50000
+          2000
       }
     }
 
@@ -1642,7 +2046,7 @@ players.forEach(
           5000000
       }
     } else {
-      // 7～9人は従来通り
+      // 7～12人は従来通り
       if (
         streak >= 4
       ) {
@@ -1722,56 +2126,74 @@ players.forEach(
       }
     )
 
-    // =======================================================
-    // ⑥ 休憩グループ周期
-    // =======================================================
+// =======================================================
+// ⑥ 休憩グループ周期
+// =======================================================
 
+score +=
+  calculateRestCyclePenalty(
+    schedule
+  )
+
+// =======================================================
+// ⑦ ポジションバランス
+//
+// 出場回数
+// ＞ 連続出場
+// ＞ 連続休憩
+// ＞ ポジション
+// ＞＞＞ 5人組重複
+// =======================================================
+
+schedule.forEach(
+  (game) => {
     score +=
-      calculateRestCyclePenalty(
-        schedule
+      calculatePositionPenalty(
+        game.players,
+        target
       )
+  }
+)
 
-    // =======================================================
-    // ⑦ 5人組
-    // =======================================================
-
+// =======================================================
+// ⑧ 5人組
+// =======================================================
     const teamCounts =
       getTeamCounts(
         schedule
       )
 
-    Object.values(
-      teamCounts
-    ).forEach(
-      (count) => {
-        if (
-          count === 2
-        ) {
-          score +=
-            20000
-        }
+Object.values(
+  teamCounts
+).forEach(
+  (count) => {
+    if (
+      count === 2
+    ) {
+      score +=
+        300
+    }
 
-        if (
-          count === 3
-        ) {
-          score +=
-            250000
-        }
+    if (
+      count === 3
+    ) {
+      score +=
+        1000
+    }
 
-        if (
-          count >= 4
-        ) {
-          score +=
-            700000 +
-            (
-              count -
-              4
-            ) *
-            700000
-        }
-      }
-    )
-
+    if (
+      count >= 4
+    ) {
+      score +=
+        2000 +
+        (
+          count -
+          4
+        ) *
+        2000
+    }
+  }
+)
     return score
   }
 
@@ -1836,19 +2258,41 @@ players.forEach(
       return
     }
 
-    if (
-      gameCount < 1
-    ) {
-      alert(
-        '試合数を1以上にしてください'
-      )
+if (
+  gameCount < 1
+) {
+  alert(
+    '試合数を1以上にしてください'
+  )
 
-      return
-    }
+  return
+}
 
-    setIsGenerating(
-      true
+// =========================================================
+// ポジション設定チェック
+// =========================================================
+
+if (usePositions) {
+  const allHavePosition =
+    players.every(
+      (player) =>
+        positions[player] === 'G' ||
+        positions[player] === 'F' ||
+        positions[player] === 'C'
     )
+
+  if (!allHavePosition) {
+    alert(
+      'ポジション設定を使う場合は、全員のポジションを登録してください'
+    )
+
+    return
+  }
+}
+
+setIsGenerating(
+  true
+)
 
     setTimeout(() => {
       let globalBest:
@@ -2043,6 +2487,8 @@ const createShareUrl = () => {
   const data: ShareData = {
     players,
     games,
+    usePositions,
+    positions,
   }
 
   const json =
@@ -2114,6 +2560,33 @@ const shareResult = async () => {
           --- 参加者登録 ---
         </h2>
 
+<div className="position-mode">
+
+  <label>
+    <input
+      type="checkbox"
+      checked={usePositions}
+      onChange={(e) => {
+        const checked =
+          e.target.checked
+
+        setUsePositions(
+          checked
+        )
+
+        if (!checked) {
+          setPosition('')
+          setPositions({})
+          setGames([])
+        }
+      }}
+    />
+
+    ポジション設定を使う
+  </label>
+
+</div>
+
         <div className="input-area">
 
           <input
@@ -2136,6 +2609,32 @@ const shareResult = async () => {
             placeholder="参加者の名前"
             maxLength={10}
           />
+{usePositions && (
+  <select
+    value={position}
+    onChange={(e) =>
+      setPosition(
+        e.target.value as Position
+      )
+    }
+  >
+    <option value="">
+      ポジション
+    </option>
+
+    <option value="G">
+      G
+    </option>
+
+    <option value="F">
+      F
+    </option>
+
+    <option value="C">
+      C
+    </option>
+  </select>
+)}
 
           <button
             onClick={
@@ -2170,12 +2669,16 @@ const shareResult = async () => {
                 }
               >
 
-                <span>
-                  {
-                    player
-                  }
-                </span>
+<span>
+  {player}
 
+  {positions[player] && (
+    <strong>
+      {' '}
+      （{positions[player]}）
+    </strong>
+  )}
+</span>
                 <button
                   onClick={() =>
                     removePlayer(
