@@ -518,6 +518,88 @@ h2 {
   }
 }
 
+.kanako-boss-overlay {
+  position: fixed;
+  inset: 0;
+  z-index: 10000;
+
+  display: grid;
+  place-items: center;
+
+  width: 100%;
+  padding: 20px;
+
+  border: 0;
+  background:
+    radial-gradient(
+      circle at center,
+      rgba(255, 196, 56, 0.36),
+      rgba(8, 20, 35, 0.9) 68%
+    );
+  cursor: pointer;
+}
+
+.kanako-boss-content {
+  display: grid;
+  justify-items: center;
+  gap: 8px;
+
+  width: min(92vw, 420px);
+  max-height: 92vh;
+
+  color: #fff;
+  animation: kanako-boss-appear 0.42s ease-out both;
+}
+
+.kanako-boss-content strong {
+  position: relative;
+  z-index: 1;
+
+  padding: 10px 16px;
+  border: 2px solid #ffe08a;
+  border-radius: 999px;
+
+  background: #a32525;
+  color: #fff7cf;
+  box-shadow: 0 7px 20px rgba(0, 0, 0, 0.3);
+
+  font-size: clamp(21px, 6vw, 32px);
+  line-height: 1.2;
+  white-space: nowrap;
+}
+
+.kanako-boss-content img {
+  display: block;
+  width: auto;
+  max-width: 100%;
+  height: min(68vh, 620px);
+  object-fit: contain;
+  filter: drop-shadow(0 14px 16px rgba(0, 0, 0, 0.42));
+}
+
+.kanako-boss-content small {
+  color: rgba(255, 255, 255, 0.82);
+  font-size: 12px;
+}
+
+@keyframes kanako-boss-appear {
+  from {
+    opacity: 0;
+    transform: translateY(24px) scale(0.9);
+  }
+
+  to {
+    opacity: 1;
+    transform: translateY(0) scale(1);
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .kanako-boss-content {
+    animation: none;
+  }
+}
+
 .card > p {
   line-height: 1.6;
 }
