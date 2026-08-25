@@ -1092,6 +1092,12 @@ h2 {
     min-height: 44px;
   }
 
+  .main-button {
+    width: 100%;
+    max-width: 360px;
+    min-height: 44px;
+  }
+
   .player-list li {
     flex-wrap: nowrap;
     min-height: 48px;
