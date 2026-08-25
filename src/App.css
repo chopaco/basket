@@ -775,8 +775,10 @@ h2 {
   background: #eef5fb;
 }
 
-.attendance-table tbody tr:hover td {
-  background: #e3f0fa;
+@media (hover: hover) and (pointer: fine) {
+  .attendance-table tbody tr:hover td {
+    background: #e3f0fa;
+  }
 }
 
 /* =========================================================
