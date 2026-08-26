@@ -358,6 +358,23 @@ export const generateGames = (
     return streak
   }
 
+  const currentRestStreak = (
+    schedule: Game[],
+    player: string
+  ) => {
+    let streak = 0
+
+    for (let i = schedule.length - 1; i >= 0; i--) {
+      if (!schedule[i].players.includes(player)) {
+        streak++
+      } else {
+        break
+      }
+    }
+
+    return streak
+  }
+
   // =========================================================
   // 実現可能性
   // =========================================================
@@ -669,6 +686,23 @@ const calculatePositionPenalty = (
         }
       }
     )
+
+    // すでに2試合連続で休んでいる人を、再び休ませる候補は強く避ける。
+    players
+      .filter((player) => !candidate.players.includes(player))
+      .forEach((player) => {
+        const before = currentRestStreak(schedule, player)
+        if (before >= 2) {
+          score += 20000000 + (before - 2) * 20000000
+        }
+      })
+
+    // 目標出場回数を前半で使い切らないよう、途中時点の理想ペースと比較する。
+    const progress = testSchedule.length / gameCount
+    players.forEach((player) => {
+      const expected = target[player] * progress
+      score += Math.abs(stats[player].plays - expected) * 20000
+    })
 
     // =======================================================
     // ② 残り試合で目標達成可能か
@@ -1528,12 +1562,122 @@ schedule.forEach(
   score += togetherCount * 150000
 })
 
+    const targetDeviation = players.reduce(
+      (total, player) =>
+        total + Math.abs(stats[player].plays - target[player]),
+      0
+    )
+
+    const forbiddenPositionCount = schedule.filter(
+      (game) =>
+        getPositionRating(
+          game.players,
+          players,
+          positions,
+          usePositions
+        ) === 'forbidden'
+    ).length
+
+    const threeRestPlayerCount = longestRests.filter(
+      (streak) => streak >= 3
+    ).length
+    const totalRestExcess = longestRests.reduce(
+      (total, streak) => total + Math.max(0, streak - 2),
+      0
+    )
+    const maxRestStreak = Math.max(...longestRests)
+
+    const playStreaks = players.map(
+      (player) => stats[player].maxPlayStreak
+    )
+    const allowedPlayStreak = players.length === 6 ? 5 : 3
+    const playStreakViolationCount = playStreaks.filter(
+      (streak) => streak > allowedPlayStreak
+    ).length
+    const totalPlayStreakExcess = playStreaks.reduce(
+      (total, streak) =>
+        total + Math.max(0, streak - allowedPlayStreak),
+      0
+    )
+    const maxPlayStreak = Math.max(...playStreaks)
+
+    const runningPlays = Object.fromEntries(
+      players.map((player) => [player, 0])
+    ) as Record<string, number>
+    let timelineImbalance = 0
+    schedule.forEach((game, index) => {
+      game.players.forEach((player) => runningPlays[player]++)
+      const progress = (index + 1) / gameCount
+      players.forEach((player) => {
+        timelineImbalance += Math.abs(
+          runningPlays[player] - target[player] * progress
+        )
+      })
+    })
+
+    let minorityPairExcess = 0
+    ;(['G', 'F', 'C'] as const).forEach((position) => {
+      const members = players.filter(
+        (player) => positions[player] === position
+      )
+      if (members.length !== 2) return
+
+      const togetherCount = schedule.filter(
+        (game) => members.every((member) => game.players.includes(member))
+      ).length
+      const totalPlays = members.reduce(
+        (total, member) => total + stats[member].plays,
+        0
+      )
+      minorityPairExcess +=
+        togetherCount - Math.max(0, totalPlays - gameCount)
+    })
+
+    const allPairCounts: number[] = []
+    const pairCounts = getPairCounts(schedule)
+    for (let i = 0; i < players.length; i++) {
+      for (let j = i + 1; j < players.length; j++) {
+        allPairCounts.push(pairCounts[pairKey(players[i], players[j])] || 0)
+      }
+    }
+    const pairCountSpread =
+      Math.max(...allPairCounts) - Math.min(...allPairCounts)
+
+    let positionQuality = 0
+    schedule.forEach((game) => {
+      const rating = getPositionRating(
+        game.players,
+        players,
+        positions,
+        usePositions
+      )
+      if (rating === 'acceptable') positionQuality += 1
+      if (rating === 'avoid') positionQuality += 10
+    })
+
+    const duplicate = calculateDuplicateScore(schedule)
+    const priority = [
+      Math.max(...playCounts) - Math.min(...playCounts),
+      targetDeviation,
+      forbiddenPositionCount,
+      threeRestPlayerCount,
+      totalRestExcess,
+      maxRestStreak,
+      playStreakViolationCount,
+      totalPlayStreakExcess,
+      maxPlayStreak,
+      Math.round(timelineImbalance * 1000),
+      Math.max(...threeCounts) - Math.min(...threeCounts),
+      minorityPairExcess,
+      pairCountSpread,
+      calculateRestCyclePenalty(schedule),
+      positionQuality,
+      duplicate,
+      score,
+    ]
+
     return {
-      primary: score,
-      duplicate:
-        calculateDuplicateScore(
-          schedule
-        ),
+      priority,
     }
   }
 
@@ -1579,15 +1723,26 @@ schedule.forEach(
         }
     }
   }
+
+  const comparePriorities = (
+    left: number[],
+    right: number[]
+  ) => {
+    for (let index = 0; index < left.length; index++) {
+      if (left[index] !== right[index]) {
+        return left[index] - right[index]
+      }
+    }
+    return 0
+  }
+
       let globalBest:
         Game[] | null =
         null
 
-      let globalBestPrimary =
-        Infinity
-
-      let globalBestDuplicate =
-        Infinity
+      let globalBestPriority:
+        number[] | null =
+        null
 
       const allTeams =
         getTeamCandidates()
@@ -1629,55 +1784,13 @@ schedule.forEach(
               target
             )
 
-          const primaryTolerance =
-            500
+          const comparison = globalBestPriority
+            ? comparePriorities(score.priority, globalBestPriority)
+            : -1
 
-          if (
-            score.primary <
-            globalBestPrimary -
-            primaryTolerance
-          ) {
-            globalBestPrimary =
-              score.primary
-
-            globalBestDuplicate =
-              score.duplicate
-
-            globalBest =
-              result
-          } else if (
-            Math.abs(
-              score.primary -
-              globalBestPrimary
-            ) <=
-            primaryTolerance
-          ) {
-            if (
-              score.duplicate <
-              globalBestDuplicate
-            ) {
-              globalBestPrimary =
-                score.primary
-
-              globalBestDuplicate =
-                score.duplicate
-
-              globalBest =
-                result
-            } else if (
-              score.duplicate ===
-                globalBestDuplicate &&
-              Math.random() < 0.35
-            ) {
-              globalBestPrimary =
-                score.primary
-
-              globalBestDuplicate =
-                score.duplicate
-
-              globalBest =
-                result
-            }
+          if (comparison < 0 || (comparison === 0 && Math.random() < 0.35)) {
+            globalBestPriority = score.priority
+            globalBest = result
           }
         }
       }
