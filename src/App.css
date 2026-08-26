@@ -1195,6 +1195,16 @@ h2 {
   background: #dde1e5;
 }
 
+.app-version {
+  order: 11;
+  margin-top: 28px;
+  padding: 4px 0 10px;
+  color: #7c8793;
+  font-size: 11px;
+  line-height: 1;
+  text-align: center;
+}
+
 @media (max-width: 480px) {
   .share-buttons {
     gap: 6px;

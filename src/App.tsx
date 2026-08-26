@@ -1,4 +1,10 @@
-import { useEffect, useState } from 'react'
+import {
+  useCallback,
+  useEffect,
+  useMemo,
+  useRef,
+  useState,
+} from 'react'
 import './App.css'
 import { generateGames } from './generator'
 import kanakoBossImage from './assets/kanako-boss.webp'
@@ -43,6 +49,7 @@ const MAX_PLAYERS = 12
 const MIN_GAMES = 1
 const MAX_GAMES = 16
 const MAX_HISTORY = 3
+const APP_VERSION = '9.5'
 
 const PLAYERS_STORAGE_KEY = 'team-maker-players'
 const GAME_COUNT_STORAGE_KEY = 'team-maker-game-count'
@@ -293,6 +300,11 @@ const [positions, setPositions] =
   const [isGenerating, setIsGenerating] =
     useState(false)
 
+  const [showLoadingOverlay, setShowLoadingOverlay] =
+    useState(false)
+
+  const loadingShownAt = useRef<number | null>(null)
+
   const [showKanakoBoss, setShowKanakoBoss] =
     useState(false)
 
@@ -306,6 +318,30 @@ const [positions, setPositions] =
     return () => {
       document.body.style.overflow = previousOverflow
     }
+  }, [isGenerating])
+
+  useEffect(() => {
+    let timer: number
+
+    if (isGenerating) {
+      timer = window.setTimeout(() => {
+        loadingShownAt.current = performance.now()
+        setShowLoadingOverlay(true)
+      }, 180)
+    } else if (loadingShownAt.current !== null) {
+      const elapsed =
+        performance.now() - loadingShownAt.current
+      const remaining = Math.max(0, 320 - elapsed)
+
+      timer = window.setTimeout(() => {
+        loadingShownAt.current = null
+        setShowLoadingOverlay(false)
+      }, remaining)
+    } else {
+      setShowLoadingOverlay(false)
+    }
+
+    return () => window.clearTimeout(timer)
   }, [isGenerating])
 
   useEffect(() => {
@@ -753,7 +789,7 @@ setGames([])
   // 統計
   // =========================================================
 
-  const calculateStats = (
+  const calculateStats = useCallback((
     schedule: Game[]
   ): Record<
     string,
@@ -847,13 +883,13 @@ setGames([])
     )
 
     return result
-  }
+  }, [players])
 
   // =========================================================
   // 5人組
   // =========================================================
 
-  const getTeamCounts = (
+  const getTeamCounts = useCallback((
     schedule: Game[]
   ) => {
     const counts:
@@ -878,7 +914,7 @@ setGames([])
     )
 
     return counts
-  }
+  }, [])
 
   // =========================================================
   // メンバー作成
@@ -1025,29 +1061,18 @@ setIsGenerating(
   // 表示用
   // =========================================================
 
-  const stats =
-    calculateStats(
-      games
-    )
+  const { stats, duplicateTeams } = useMemo(() => {
+    const nextStats = calculateStats(games)
+    const teamCounts = getTeamCounts(games)
+    const nextDuplicateTeams = Object.entries(teamCounts)
+      .filter(([, count]) => count >= 2)
+      .sort((a, b) => b[1] - a[1])
 
-  const teamCounts =
-    getTeamCounts(
-      games
-    )
-
-  const duplicateTeams =
-    Object.entries(
-      teamCounts
-    )
-      .filter(
-        ([, count]) =>
-          count >= 2
-      )
-      .sort(
-        (a, b) =>
-          b[1] -
-          a[1]
-      )
+    return {
+      stats: nextStats,
+      duplicateTeams: nextDuplicateTeams,
+    }
+  }, [calculateStats, games, getTeamCounts])
 
   // =========================================================
   // 表示用連続出場
@@ -1183,7 +1208,7 @@ const shareResult = async () => {
       aria-busy={isGenerating}
     >
 
-      {isGenerating && (
+      {showLoadingOverlay && (
         <div
           className="loading-overlay"
           role="status"
@@ -1526,13 +1551,13 @@ const shareResult = async () => {
           }
         >
 
-          {isGenerating
+          {showLoadingOverlay
             ? '計算中...'
             : 'メンバーを作成'}
 
         </button>
 
-        {isGenerating && (
+        {showLoadingOverlay && (
           <p>
             公平性を維持しながら、
             複数パターンを
@@ -2121,6 +2146,10 @@ const shareResult = async () => {
         </>
 
       )}
+
+      <footer className="app-version">
+        Ver. {APP_VERSION}
+      </footer>
 
     </div>
   )
