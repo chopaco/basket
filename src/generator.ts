@@ -1830,9 +1830,13 @@ export const getPositionRating = (
   })
 
   const key = `${selected.G}-${selected.F}-${selected.C}`
+  const guardsAreMajority = pool.G * 2 > players.length
 
   if (pool.G > 0 && pool.F > 0 && pool.C > 0) {
-    if (selected.G >= 3) return 'forbidden'
+    if (selected.G >= 4) return 'forbidden'
+    if (selected.G === 3) {
+      return guardsAreMajority ? 'avoid' : 'forbidden'
+    }
     if (['2-1-2', '1-3-1', '1-2-2', '2-2-1'].includes(key)) {
       return 'ideal'
     }
@@ -1856,7 +1860,10 @@ export const getPositionRating = (
   if (pool.C === 0) {
     if (key === '2-3-0' || key === '1-4-0') ratings.push('ideal')
     else if (key === '0-5-0') ratings.push('acceptable')
-    else if (selected.G >= 3) ratings.push('forbidden')
+    else if (selected.G >= 4) ratings.push('forbidden')
+    else if (selected.G === 3) {
+      ratings.push(guardsAreMajority ? 'avoid' : 'forbidden')
+    }
   }
 
   if (ratings.length === 0) return 'acceptable'
