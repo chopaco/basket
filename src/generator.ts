@@ -701,7 +701,12 @@ const calculatePositionPenalty = (
     const progress = testSchedule.length / gameCount
     players.forEach((player) => {
       const expected = target[player] * progress
-      score += Math.abs(stats[player].plays - expected) * 20000
+      const paceDifference = Math.abs(
+        stats[player].plays - expected
+      )
+      score +=
+        paceDifference * 200000 +
+        paceDifference * paceDifference * 200000
     })
 
     // =======================================================
@@ -1070,12 +1075,11 @@ if (
   newTeamCount >= 4
 ) {
   score +=
-    10000 +
-    (
-      newTeamCount -
-      4
+    Math.pow(
+      newTeamCount - 3,
+      2
     ) *
-    5000
+    500000
 }
 
     // =======================================================
@@ -1172,13 +1176,6 @@ if (
       let bestScore =
         Infinity
 
-      let bestForbiddenCandidate:
-        Game | null =
-        null
-
-      let bestForbiddenScore =
-        Infinity
-
       for (
         const team
         of candidates
@@ -1205,16 +1202,6 @@ if (
           continue
         }
 
-        const positionRating = team.positionRating
-
-        if (positionRating === 'forbidden') {
-          if (score < bestForbiddenScore) {
-            bestForbiddenScore = score
-            bestForbiddenCandidate = candidate
-          }
-          continue
-        }
-
         if (
           score <
           bestScore
@@ -1225,12 +1212,6 @@ if (
           bestCandidate =
             candidate
         }
-      }
-
-      if (
-        !bestCandidate
-      ) {
-        bestCandidate = bestForbiddenCandidate
       }
 
       if (!bestCandidate) {
@@ -1825,6 +1806,15 @@ export const getPositionRating = (
   usePositions: boolean
 ): PositionRating => {
   if (!usePositions) return 'ideal'
+
+  const positionVariety = new Set(
+    players
+      .map((player) => positions[player])
+      .filter((position): position is Exclude<Position, ''> => Boolean(position))
+  ).size
+
+  // 全員が同じポジションなら、登録表示は保持したまま評価だけを無効にする。
+  if (positionVariety <= 1) return 'ideal'
 
   const pool = { G: 0, F: 0, C: 0 }
   const selected = { G: 0, F: 0, C: 0 }
