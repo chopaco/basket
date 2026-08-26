@@ -29,6 +29,14 @@ type ShareData = {
   >
 }
 
+type CompactShareData = {
+  v: 1
+  p: string[]
+  g: number[][]
+  u: boolean
+  o: string
+}
+
 type Stats = {
   plays: number
   rests: number
@@ -52,7 +60,7 @@ const MAX_PLAYERS = 12
 const MIN_GAMES = 1
 const MAX_GAMES = 16
 const MAX_HISTORY = 3
-const APP_VERSION = '9.8'
+const APP_VERSION = '9.9'
 
 const PLAYERS_STORAGE_KEY = 'team-maker-players'
 const GAME_COUNT_STORAGE_KEY = 'team-maker-game-count'
@@ -176,45 +184,136 @@ const loadSavedHistory = (): History[] => {
   }
 }
 
+const encodeBase64Url = (value: string) => {
+  const bytes = new TextEncoder().encode(value)
+  const binary = Array.from(
+    bytes,
+    (byte) => String.fromCharCode(byte)
+  ).join('')
+
+  return btoa(binary)
+    .replaceAll('+', '-')
+    .replaceAll('/', '_')
+    .replace(/=+$/u, '')
+}
+
+const decodeBase64Url = (value: string) => {
+  const base64 = value
+    .replaceAll('-', '+')
+    .replaceAll('_', '/')
+    .padEnd(Math.ceil(value.length / 4) * 4, '=')
+  const binary = atob(base64)
+  const bytes = Uint8Array.from(
+    binary,
+    (character) => character.charCodeAt(0)
+  )
+
+  return new TextDecoder().decode(bytes)
+}
+
+const parseCompactShareData = (
+  encoded: string
+): ShareData | null => {
+  const parsed = JSON.parse(
+    decodeBase64Url(encoded)
+  ) as Partial<CompactShareData>
+
+  if (
+    parsed.v !== 1 ||
+    !Array.isArray(parsed.p) ||
+    !Array.isArray(parsed.g) ||
+    typeof parsed.o !== 'string'
+  ) {
+    return null
+  }
+
+  const players = parsed.p
+  const gameIndexes = parsed.g
+
+  if (
+    !players.every((player) => typeof player === 'string') ||
+    !gameIndexes.every(
+      (game) =>
+        Array.isArray(game) &&
+        game.length === 5 &&
+        game.every(
+          (index) =>
+            Number.isInteger(index) &&
+            index >= 0 &&
+            index < players.length
+        )
+    )
+  ) {
+    return null
+  }
+
+  const positions = Object.fromEntries(
+    players.map((player, index) => {
+      const position = parsed.o?.[index]
+
+      return [
+        player,
+        position === 'G' || position === 'F' || position === 'C'
+          ? position
+          : '',
+      ]
+    })
+  ) as Record<string, Position>
+
+  return {
+    players,
+    games: gameIndexes.map((game, index) => ({
+      gameNumber: index + 1,
+      players: game.map((playerIndex) => players[playerIndex]),
+    })),
+    usePositions: parsed.u === true,
+    positions,
+  }
+}
+
+const parseLegacyShareData = (
+  encoded: string
+): ShareData | null => {
+  const parsed = JSON.parse(
+    decodeURIComponent(encoded)
+  ) as Partial<ShareData>
+
+  if (
+    !Array.isArray(parsed.players) ||
+    !Array.isArray(parsed.games)
+  ) {
+    return null
+  }
+
+  return {
+    players: parsed.players,
+    games: parsed.games,
+    usePositions: parsed.usePositions === true,
+    positions:
+      parsed.positions && typeof parsed.positions === 'object'
+        ? parsed.positions
+        : {},
+  }
+}
+
 const loadSharedData = (): ShareData | null => {
   try {
-    const prefix = '#result='
+    const compactPrefix = '#r='
+    const legacyPrefix = '#result='
 
-    if (
-      !window.location.hash.startsWith(
-        prefix
+    if (window.location.hash.startsWith(compactPrefix)) {
+      return parseCompactShareData(
+        window.location.hash.slice(compactPrefix.length)
       )
-    ) {
-      return null
     }
 
-    const encoded =
-      window.location.hash.slice(
-        prefix.length
+    if (window.location.hash.startsWith(legacyPrefix)) {
+      return parseLegacyShareData(
+        window.location.hash.slice(legacyPrefix.length)
       )
-
-    const parsed = JSON.parse(
-      decodeURIComponent(encoded)
-    ) as Partial<ShareData>
-
-    if (
-      !Array.isArray(parsed.players) ||
-      !Array.isArray(parsed.games)
-    ) {
-      return null
     }
 
-    return {
-      players: parsed.players,
-      games: parsed.games,
-      usePositions:
-        parsed.usePositions === true,
-      positions:
-        parsed.positions &&
-        typeof parsed.positions === 'object'
-          ? parsed.positions
-          : {},
-    }
+    return null
   } catch {
     alert(
       '共有された結果を読み込めませんでした'
@@ -1154,23 +1253,27 @@ const copyResult = async () => {
 }
 
 const createShareUrl = () => {
-  const data: ShareData = {
-    players,
-    games,
-    usePositions,
-    positions,
+  const playerIndexes = new Map(
+    players.map((player, index) => [player, index])
+  )
+  const data: CompactShareData = {
+    v: 1,
+    p: players,
+    g: games.map((game) =>
+      game.players.map((player) => playerIndexes.get(player) ?? -1)
+    ),
+    u: usePositions,
+    o: players.map((player) => positions[player] || '-').join(''),
   }
 
-  const json =
+  const encoded = encodeBase64Url(
     JSON.stringify(data)
-
-  const encoded =
-    encodeURIComponent(json)
+  )
 
   return (
     window.location.origin +
     window.location.pathname +
-    '#result=' +
+    '#r=' +
     encoded
   )
 }
