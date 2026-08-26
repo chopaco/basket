@@ -6,7 +6,10 @@ import {
   useState,
 } from 'react'
 import './App.css'
-import { generateGames } from './generator'
+import {
+  generateGames,
+  getPositionRating,
+} from './generator'
 import kanakoBossImage from './assets/kanako-boss.webp'
 
 type Game = {
@@ -49,7 +52,7 @@ const MAX_PLAYERS = 12
 const MIN_GAMES = 1
 const MAX_GAMES = 16
 const MAX_HISTORY = 3
-const APP_VERSION = '9.5'
+const APP_VERSION = '9.6'
 
 const PLAYERS_STORAGE_KEY = 'team-maker-players'
 const GAME_COUNT_STORAGE_KEY = 'team-maker-game-count'
@@ -1074,6 +1077,21 @@ setIsGenerating(
     }
   }, [calculateStats, games, getTeamCounts])
 
+  const hasForbiddenPositionLineup = useMemo(
+    () =>
+      usePositions &&
+      games.some(
+        (game) =>
+          getPositionRating(
+            game.players,
+            players,
+            positions,
+            usePositions
+          ) === 'forbidden'
+      ),
+    [games, players, positions, usePositions]
+  )
+
   // =========================================================
   // 表示用連続出場
   // =========================================================
@@ -1679,6 +1697,14 @@ const shareResult = async () => {
         0 && (
 
         <>
+
+          {hasForbiddenPositionLineup && (
+            <p className="position-warning" role="note">
+              注意：出場回数などの条件を満たすため、
+              禁止構成を含む試合があります。
+              試合別のポジション構成をご確認ください。
+            </p>
+          )}
 
           <section className="card">
 

@@ -5,18 +5,12 @@ export type Game = {
   players: string[]
 }
 
-type PositionCounts = {
-  G: number
-  F: number
-  C: number
-}
-
 type TeamCandidate = {
   players: string[]
   key: string
   restKey: string
   pairKeys: string[]
-  positionCounts: PositionCounts
+  positionRating: PositionRating
 }
 
 type Stats = {
@@ -434,28 +428,9 @@ export const generateGames = (
       team: string[]
     ): TeamCandidate => {
       const pairKeys: string[] = []
-      const positionCounts:
-        PositionCounts = {
-          G: 0,
-          F: 0,
-          C: 0,
-        }
 
       team.forEach(
         (player, index) => {
-          const playerPosition =
-            positions[player]
-
-          if (
-            playerPosition === 'G' ||
-            playerPosition === 'F' ||
-            playerPosition === 'C'
-          ) {
-            positionCounts[
-              playerPosition
-            ]++
-          }
-
           for (
             let pairIndex = index + 1;
             pairIndex < team.length;
@@ -476,7 +451,12 @@ export const generateGames = (
         key: teamKey(team),
         restKey: restGroupKey(team),
         pairKeys,
-        positionCounts,
+        positionRating: getPositionRating(
+          team,
+          players,
+          positions,
+          usePositions
+        ),
       }
     }
 
@@ -619,272 +599,19 @@ export const generateGames = (
 
 const calculatePositionPenalty = (
   team: string[],
-  target?: Record<
-    string,
-    number
-  >,
-  precomputedPositionCounts?:
-    PositionCounts
+  precomputedRating?: PositionRating
 ) => {
-  // ポジション設定を使わない場合は
-  // ポジション評価を完全に無効化
-  if (!usePositions) {
-    return 0
-  }
-
-  const poolCounts = {
-    G: 0,
-    F: 0,
-    C: 0,
-  }
-
-  players.forEach(
-    (player) => {
-      const pos =
-        positions[player]
-
-      if (pos === 'G') {
-        poolCounts.G++
-      }
-
-      if (pos === 'F') {
-        poolCounts.F++
-      }
-
-      if (pos === 'C') {
-        poolCounts.C++
-      }
-    }
-  )
-
-  const teamCounts =
-    precomputedPositionCounts || {
-      G: 0,
-      F: 0,
-      C: 0,
-    }
-
-  if (!precomputedPositionCounts) {
-    team.forEach(
-      (player) => {
-        const pos =
-          positions[player]
-
-        if (pos === 'G') {
-          teamCounts.G++
-        }
-
-        if (pos === 'F') {
-          teamCounts.F++
-        }
-
-        if (pos === 'C') {
-          teamCounts.C++
-        }
-      }
+  const rating =
+    precomputedRating ??
+    getPositionRating(
+      team,
+      players,
+      positions,
+      usePositions
     )
-  }
 
-  // =======================================================
-  // そのポジションの
-  // 目標出場回数合計
-  // =======================================================
+  return POSITION_RATING_WEIGHT[rating]
 
-  const getTargetPlaysByPosition = (
-    pos: 'G' | 'F' | 'C'
-  ) => {
-    if (!target) {
-      return 0
-    }
-
-    return players
-      .filter(
-        (player) =>
-          positions[player] ===
-          pos
-      )
-      .reduce(
-        (
-          sum,
-          player
-        ) =>
-          sum +
-          target[player],
-        0
-      )
-  }
-
-  // =======================================================
-  // 最低1名を全試合で維持可能か
-  // =======================================================
-
-  const canKeepMinOne = (
-    pos: 'G' | 'F' | 'C'
-  ) => {
-    if (
-      poolCounts[pos] === 0
-    ) {
-      return false
-    }
-
-    if (!target) {
-      return true
-    }
-
-    const requiredPlays =
-      getTargetPlaysByPosition(
-        pos
-      )
-
-    return (
-      requiredPlays >=
-      gameCount
-    )
-  }
-
-  // =======================================================
-  // 最大2名を全試合で維持可能か
-  // =======================================================
-
-  const canKeepMaxTwo = (
-    pos: 'G' | 'F' | 'C'
-  ) => {
-    if (!target) {
-      return true
-    }
-
-    const requiredPlays =
-      getTargetPlaysByPosition(
-        pos
-      )
-
-    const maxAvailable =
-      gameCount * 2
-
-    return (
-      requiredPlays <=
-      maxAvailable
-    )
-  }
-
-  const enforceMinG =
-    canKeepMinOne('G')
-
-  const enforceMinF =
-    canKeepMinOne('F')
-
-  const enforceMinC =
-    canKeepMinOne('C')
-
-  const enforceMaxG =
-    canKeepMaxTwo('G')
-
-  const enforceMaxF =
-    canKeepMaxTwo('F')
-
-  const enforceMaxC =
-    canKeepMaxTwo('C')
-
-  let penalty = 0
-
-  // =======================================================
-  // 最低1名
-  //
-  // 実現可能なら強く優先
-  // =======================================================
-
-  if (
-    enforceMinG &&
-    teamCounts.G === 0
-  ) {
-    penalty += 100000
-  }
-
-  if (
-    enforceMinF &&
-    teamCounts.F === 0
-  ) {
-    penalty += 100000
-  }
-
-  if (
-    enforceMinC &&
-    teamCounts.C === 0
-  ) {
-    penalty += 100000
-  }
-
-  // =======================================================
-  // 最大2名
-  //
-  // 実現可能なら優先
-  // =======================================================
-
-  if (
-    enforceMaxG &&
-    teamCounts.G > 2
-  ) {
-    penalty +=
-      (
-        teamCounts.G -
-        2
-      ) *
-      50000
-  }
-
-  if (
-    enforceMaxF &&
-    teamCounts.F > 2
-  ) {
-    penalty +=
-      (
-        teamCounts.F -
-        2
-      ) *
-      50000
-  }
-
-  if (
-    enforceMaxC &&
-    teamCounts.C > 2
-  ) {
-    penalty +=
-      (
-        teamCounts.C -
-        2
-      ) *
-      50000
-  }
-
-  // =======================================================
-  // 最大2名を維持できないポジション
-  //
-  // 4名以上になる極端な偏りだけ
-  // 軽く避ける
-  // =======================================================
-
-  if (
-    !enforceMaxG &&
-    teamCounts.G >= 4
-  ) {
-    penalty += 1000
-  }
-
-  if (
-    !enforceMaxF &&
-    teamCounts.F >= 4
-  ) {
-    penalty += 1000
-  }
-
-  if (
-    !enforceMaxC &&
-    teamCounts.C >= 4
-  ) {
-    penalty += 1000
-  }
-
-  return penalty
 }
 
   const evaluateCandidate = (
@@ -1272,8 +999,7 @@ if (
 score +=
   calculatePositionPenalty(
     candidate.players,
-    target,
-    candidateInfo.positionCounts
+    candidateInfo.positionRating
   )
 
 // =======================================================
@@ -1412,6 +1138,13 @@ if (
       let bestScore =
         Infinity
 
+      let bestForbiddenCandidate:
+        Game | null =
+        null
+
+      let bestForbiddenScore =
+        Infinity
+
       for (
         const team
         of candidates
@@ -1434,6 +1167,20 @@ if (
             target
           )
 
+        if (!Number.isFinite(score)) {
+          continue
+        }
+
+        const positionRating = team.positionRating
+
+        if (positionRating === 'forbidden') {
+          if (score < bestForbiddenScore) {
+            bestForbiddenScore = score
+            bestForbiddenCandidate = candidate
+          }
+          continue
+        }
+
         if (
           score <
           bestScore
@@ -1449,6 +1196,10 @@ if (
       if (
         !bestCandidate
       ) {
+        bestCandidate = bestForbiddenCandidate
+      }
+
+      if (!bestCandidate) {
         return null
       }
 
@@ -1752,11 +1503,30 @@ schedule.forEach(
   (game) => {
     score +=
       calculatePositionPenalty(
-        game.players,
-        target
+        game.players
       )
   }
 )
+
+// =======================================================
+// ⑧ 2人しかいないポジションの固定化を避ける
+// =======================================================
+
+;(['G', 'F', 'C'] as const).forEach((position) => {
+  const members = players.filter(
+    (player) => positions[player] === position
+  )
+
+  if (members.length !== 2) return
+
+  const togetherCount = schedule.filter(
+    (game) =>
+      game.players.includes(members[0]) &&
+      game.players.includes(members[1])
+  ).length
+
+  score += togetherCount * 150000
+})
 
     return {
       primary: score,
@@ -1920,4 +1690,77 @@ schedule.forEach(
   }
 
   return globalBest
+}
+
+export type PositionRating =
+  | 'ideal'
+  | 'acceptable'
+  | 'avoid'
+  | 'forbidden'
+
+const POSITION_RATING_WEIGHT: Record<PositionRating, number> = {
+  ideal: 0,
+  acceptable: 2500,
+  avoid: 50000,
+  forbidden: 1000000,
+}
+
+export const getPositionRating = (
+  team: string[],
+  players: string[],
+  positions: Record<string, Position>,
+  usePositions: boolean
+): PositionRating => {
+  if (!usePositions) return 'ideal'
+
+  const pool = { G: 0, F: 0, C: 0 }
+  const selected = { G: 0, F: 0, C: 0 }
+
+  players.forEach((player) => {
+    const position = positions[player]
+    if (position) pool[position]++
+  })
+
+  team.forEach((player) => {
+    const position = positions[player]
+    if (position) selected[position]++
+  })
+
+  const key = `${selected.G}-${selected.F}-${selected.C}`
+
+  if (pool.G > 0 && pool.F > 0 && pool.C > 0) {
+    if (selected.G >= 3) return 'forbidden'
+    if (['2-1-2', '1-3-1', '1-2-2', '2-2-1'].includes(key)) {
+      return 'ideal'
+    }
+    return 'acceptable'
+  }
+
+  const ratings: PositionRating[] = []
+
+  if (pool.G === 0) {
+    if (key === '0-3-2' || key === '0-4-1') ratings.push('ideal')
+    else if (['0-5-0', '0-2-3', '0-1-4'].includes(key)) ratings.push('acceptable')
+    else if (key === '0-0-5') ratings.push('avoid')
+  }
+
+  if (pool.F === 0) {
+    if (['2-0-3', '3-0-2', '1-0-4'].includes(key)) ratings.push('acceptable')
+    else if (key === '4-0-1') ratings.push('avoid')
+    else if (key === '5-0-0') ratings.push('forbidden')
+  }
+
+  if (pool.C === 0) {
+    if (key === '2-3-0' || key === '1-4-0') ratings.push('ideal')
+    else if (key === '0-5-0') ratings.push('acceptable')
+    else if (selected.G >= 3) ratings.push('forbidden')
+  }
+
+  if (ratings.length === 0) return 'acceptable'
+
+  return ratings.reduce((worst, rating) =>
+    POSITION_RATING_WEIGHT[rating] > POSITION_RATING_WEIGHT[worst]
+      ? rating
+      : worst
+  )
 }

@@ -1205,6 +1205,17 @@ h2 {
   text-align: center;
 }
 
+.position-warning {
+  margin: 0 0 16px;
+  padding: 10px 12px;
+  border: 1px solid #e8a23b;
+  border-radius: 10px;
+  background: #fff7e6;
+  color: #7a4700;
+  font-size: 13px;
+  line-height: 1.5;
+}
+
 @media (max-width: 480px) {
   .share-buttons {
     gap: 6px;
