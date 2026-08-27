@@ -1188,7 +1188,8 @@ if (
         string,
         number
       >,
-    allTeams: TeamCandidate[]
+    allTeams: TeamCandidate[],
+    preferPlayStreakLimit: boolean
   ) => {
     const schedule:
       Game[] = []
@@ -1216,6 +1217,18 @@ if (
         const team
         of candidates
       ) {
+        const preferredMaximum = players.length === 6 ? 5 : 3
+
+        if (
+          preferPlayStreakLimit &&
+          team.players.some(
+            (player) =>
+              currentPlayStreak(schedule, player) >= preferredMaximum
+          )
+        ) {
+          continue
+        }
+
         const candidate:
           Game = {
           gameNumber:
@@ -1773,46 +1786,47 @@ schedule.forEach(
       } =
         getGenerationSettings()
 
-      for (
-        let targetTry = 0;
-        targetTry <
-        targetAttempts;
-        targetTry++
-      ) {
-        const target =
-          getTargetPlays()
-
+      const runAttempts = (preferPlayStreakLimit: boolean) => {
         for (
-          let i = 0;
-          i <
-          attempts;
-          i++
+          let targetTry = 0;
+          targetTry < targetAttempts;
+          targetTry++
         ) {
-          const result =
-            generateOne(
+          const target = getTargetPlays()
+
+          for (let i = 0; i < attempts; i++) {
+            const result = generateOne(
               target,
-              allTeams
+              allTeams,
+              preferPlayStreakLimit
             )
 
-          if (!result) {
-            continue
-          }
+            if (!result) {
+              continue
+            }
 
-          const score =
-            finalScore(
-              result,
-              target
-            )
+            const score = finalScore(result, target)
+            const comparison = globalBestPriority
+              ? comparePriorities(score.priority, globalBestPriority)
+              : -1
 
-          const comparison = globalBestPriority
-            ? comparePriorities(score.priority, globalBestPriority)
-            : -1
-
-          if (comparison < 0 || (comparison === 0 && Math.random() < 0.35)) {
-            globalBestPriority = score.priority
-            globalBest = result
+            if (
+              comparison < 0 ||
+              (comparison === 0 && Math.random() < 0.35)
+            ) {
+              globalBestPriority = score.priority
+              globalBest = result
+            }
           }
         }
+      }
+
+      // まず推奨上限内だけで全日程を作る。
+      // 貪欲選択が手詰まりになった場合に限り、上限を緩和して再試行する。
+      runAttempts(true)
+
+      if (!globalBest) {
+        runAttempts(false)
       }
 
 
@@ -1822,11 +1836,13 @@ schedule.forEach(
     )
   }
 
+  const bestSchedule: Game[] = globalBest
+
   if (
     players.some((player) => {
       let restStreak = 0
 
-      return globalBest.some((game) => {
+      return bestSchedule.some((game) => {
         restStreak = game.players.includes(player)
           ? 0
           : restStreak + 1
@@ -1840,7 +1856,7 @@ schedule.forEach(
     )
   }
 
-  return globalBest
+  return bestSchedule
 }
 
 export type PositionRating =

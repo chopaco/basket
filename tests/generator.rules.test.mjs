@@ -115,25 +115,27 @@ test('ポジションONでも必須生成ルールを守る', { timeout: 60_000 
   assertScheduleRules(games, players, 16)
 })
 
-test('7人・16試合のG1/F4/C2で連続出場を全員3回以内に抑える', { timeout: 30_000 }, () => {
+test('7人・16試合のG1/F4/C2で連続出場を全員3回以内に抑える', { timeout: 60_000 }, () => {
   const players = ['A', 'B', 'C', 'D', 'E', 'F', 'G']
   const positions = {
     A: 'G', B: 'F', C: 'F', D: 'F', E: 'F', F: 'C', G: 'C',
   }
-  const games = generateGames({
-    players,
-    gameCount: 16,
-    usePositions: true,
-    positions,
-  })
+  for (let attempt = 1; attempt <= 10; attempt++) {
+    const games = generateGames({
+      players,
+      gameCount: 16,
+      usePositions: true,
+      positions,
+    })
 
-  assertScheduleRules(games, players, 16)
-  players.forEach((player) => {
-    assert.ok(
-      getMaxPlayStreak(games, player) <= 3,
-      `${player}の連続出場が3回を超えています`
-    )
-  })
+    assertScheduleRules(games, players, 16)
+    players.forEach((player) => {
+      assert.ok(
+        getMaxPlayStreak(games, player) <= 3,
+        `${attempt}回目: ${player}の連続出場が3回を超えています`
+      )
+    })
+  }
 })
 
 test('全員が同じポジションならポジション評価を無効にする', () => {
