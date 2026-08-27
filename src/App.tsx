@@ -63,7 +63,15 @@ const MAX_PLAYERS = 12
 const MIN_GAMES = 1
 const MAX_GAMES = 16
 const MAX_HISTORY = 3
-const APP_VERSION = '10.3'
+const APP_VERSION = '10.4'
+const GENERATION_VERSION = '2'
+const COMPATIBLE_GENERATION_VERSIONS = new Set([
+  GENERATION_VERSION,
+  '10.1',
+  '10.2',
+  '10.3',
+  '10.4',
+])
 
 const PLAYERS_STORAGE_KEY = 'team-maker-players'
 const GAME_COUNT_STORAGE_KEY = 'team-maker-game-count'
@@ -197,8 +205,8 @@ const encodeBase64Url = (value: string) => {
   ).join('')
 
   return btoa(binary)
-    .replaceAll('+', '-')
-    .replaceAll('/', '_')
+    .replace(/\+/gu, '-')
+    .replace(/\//gu, '_')
     .replace(/=+$/u, '')
 }
 
@@ -229,10 +237,11 @@ const hasThreeConsecutiveRests = (
   })
 
 const decodeBase64Url = (value: string) => {
-  const base64 = value
-    .replaceAll('-', '+')
-    .replaceAll('_', '/')
-    .padEnd(Math.ceil(value.length / 4) * 4, '=')
+  const normalized = decodeURIComponent(value.trim())
+  const base64 = normalized
+    .replace(/-/gu, '+')
+    .replace(/_/gu, '/')
+    .padEnd(Math.ceil(normalized.length / 4) * 4, '=')
   const binary = atob(base64)
   const bytes = Uint8Array.from(
     binary,
@@ -838,7 +847,7 @@ useEffect(() => {
           })
         ),
 
-      generationVersion: APP_VERSION,
+      generationVersion: GENERATION_VERSION,
     }
 
     setHistory(
@@ -1145,7 +1154,7 @@ setIsGenerating(
         }
 
         setGames(result)
-        setResultVersion(APP_VERSION)
+        setResultVersion(GENERATION_VERSION)
         saveHistory(result)
         maybeShowKanakoBoss()
       } catch {
@@ -1187,7 +1196,7 @@ setIsGenerating(
           }
 
           setGames(event.data.games)
-          setResultVersion(APP_VERSION)
+          setResultVersion(GENERATION_VERSION)
           saveHistory(event.data.games)
           maybeShowKanakoBoss()
         } else if (
@@ -1787,7 +1796,7 @@ const shareResult = async () => {
                       試合
 
                       <span className="generation-version">
-                        生成 Ver. {item.generationVersion ?? '不明'}
+                        生成ロジック Ver. {item.generationVersion ?? '不明'}
                       </span>
 
                     </div>
@@ -1840,12 +1849,13 @@ const shareResult = async () => {
 
         <>
 
-          {resultVersion !== APP_VERSION && (
+          {!resultVersion ||
+          !COMPATIBLE_GENERATION_VERSIONS.has(resultVersion) ? (
             <p className="result-version-warning" role="note">
               この結果は旧バージョン、または生成バージョン不明の結果です。
               最新版で再生成してください。
             </p>
-          )}
+          ) : null}
 
           {hasForbiddenPositionLineup && (
             <p className="position-warning" role="note">
@@ -1862,7 +1872,7 @@ const shareResult = async () => {
             </h2>
 
             <p className="generation-version current-result-version">
-              生成 Ver. {resultVersion ?? '不明'}
+              生成ロジック Ver. {resultVersion ?? '不明'}
             </p>
 
             <div className="result-actions share-buttons">
