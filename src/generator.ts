@@ -889,7 +889,9 @@ players.forEach(
   }
 )
     // =======================================================
-    // ⑤ 現在2連続以上 → 次の出場を少し抑える
+    // ⑤ 現在の連続出場数に応じて、次の出場を段階的に抑える
+    //
+    // 終盤だけを特別扱いせず、全試合で同じ基準を使う。
     // =======================================================
 
     candidate.players.forEach(
@@ -900,11 +902,12 @@ players.forEach(
             player
           )
 
-        if (
-          before >= 2
-        ) {
-          score +=
-            5000
+        if (before === 2) {
+          score += 5000
+        } else if (before === 3) {
+          score += 20000000
+        } else if (before >= 4) {
+          score += 80000000 + (before - 4) * 80000000
         }
       }
     )
@@ -1614,6 +1617,8 @@ schedule.forEach(
       0
     )
     const maxPlayStreak = Math.max(...playStreaks)
+    const playStreakSpread =
+      maxPlayStreak - Math.min(...playStreaks)
 
     const runningPlays = Object.fromEntries(
       players.map((player) => [player, 0])
@@ -1673,15 +1678,16 @@ schedule.forEach(
     const priority = [
       Math.max(...playCounts) - Math.min(...playCounts),
       targetDeviation,
-      forbiddenPositionCount,
       threeRestPlayerCount,
       totalRestExcess,
       maxRestStreak,
       playStreakViolationCount,
       totalPlayStreakExcess,
       maxPlayStreak,
+      playStreakSpread,
       Math.round(timelineImbalance * 1000),
       Math.max(...threeCounts) - Math.min(...threeCounts),
+      forbiddenPositionCount,
       minorityPairExcess,
       pairCountSpread,
       calculateRestCyclePenalty(schedule),

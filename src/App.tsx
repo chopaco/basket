@@ -63,14 +63,10 @@ const MAX_PLAYERS = 12
 const MIN_GAMES = 1
 const MAX_GAMES = 16
 const MAX_HISTORY = 3
-const APP_VERSION = '10.5'
-const GENERATION_VERSION = '2'
+const APP_VERSION = '10.6'
+const GENERATION_VERSION = '3'
 const COMPATIBLE_GENERATION_VERSIONS = new Set([
   GENERATION_VERSION,
-  '10.1',
-  '10.2',
-  '10.3',
-  '10.4',
 ])
 
 const PLAYERS_STORAGE_KEY = 'team-maker-players'

@@ -33,6 +33,18 @@ const assertNoThreeConsecutiveRests = (games, players) => {
   })
 }
 
+const getMaxPlayStreak = (games, player) => {
+  let streak = 0
+  let maximum = 0
+
+  games.forEach((game) => {
+    streak = game.players.includes(player) ? streak + 1 : 0
+    maximum = Math.max(maximum, streak)
+  })
+
+  return maximum
+}
+
 const assertScheduleRules = (games, players, gameCount) => {
   const registeredPlayers = new Set(players)
 
@@ -101,6 +113,27 @@ test('ポジションONでも必須生成ルールを守る', { timeout: 60_000 
   })
 
   assertScheduleRules(games, players, 16)
+})
+
+test('7人・16試合のG1/F4/C2で連続出場を全員3回以内に抑える', { timeout: 30_000 }, () => {
+  const players = ['A', 'B', 'C', 'D', 'E', 'F', 'G']
+  const positions = {
+    A: 'G', B: 'F', C: 'F', D: 'F', E: 'F', F: 'C', G: 'C',
+  }
+  const games = generateGames({
+    players,
+    gameCount: 16,
+    usePositions: true,
+    positions,
+  })
+
+  assertScheduleRules(games, players, 16)
+  players.forEach((player) => {
+    assert.ok(
+      getMaxPlayStreak(games, player) <= 3,
+      `${player}の連続出場が3回を超えています`
+    )
+  })
 })
 
 test('全員が同じポジションならポジション評価を無効にする', () => {
