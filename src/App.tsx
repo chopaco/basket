@@ -23,6 +23,7 @@ type ShareData = {
   players: string[]
   games: Game[]
   usePositions: boolean
+  generationVersion?: string
   positions: Record<
     string,
     Position
@@ -35,6 +36,7 @@ type CompactShareData = {
   g: number[][]
   u: boolean
   o: string
+  a?: string
 }
 
 type Stats = {
@@ -51,6 +53,7 @@ type History = {
   players: string[]
   gameCount: number
   games: Game[]
+  generationVersion?: string
   usePositions: boolean
   positions: Record<string, Position>
 }
@@ -60,11 +63,13 @@ const MAX_PLAYERS = 12
 const MIN_GAMES = 1
 const MAX_GAMES = 16
 const MAX_HISTORY = 3
-const APP_VERSION = '10.0'
+const APP_VERSION = '10.1'
 
 const PLAYERS_STORAGE_KEY = 'team-maker-players'
 const GAME_COUNT_STORAGE_KEY = 'team-maker-game-count'
 const CURRENT_GAMES_STORAGE_KEY = 'team-maker-current-games'
+const CURRENT_GAMES_VERSION_STORAGE_KEY =
+  'team-maker-current-games-version'
 const HISTORY_STORAGE_KEY = 'team-maker-history'
 const POSITIONS_STORAGE_KEY =
   'team-maker-positions'
@@ -197,6 +202,32 @@ const encodeBase64Url = (value: string) => {
     .replace(/=+$/u, '')
 }
 
+const loadSavedGamesVersion = () => {
+  try {
+    return localStorage.getItem(
+      CURRENT_GAMES_VERSION_STORAGE_KEY
+    )
+  } catch {
+    return null
+  }
+}
+
+const hasThreeConsecutiveRests = (
+  games: Game[],
+  players: string[]
+) =>
+  players.some((player) => {
+    let restStreak = 0
+
+    return games.some((game) => {
+      restStreak = game.players.includes(player)
+        ? 0
+        : restStreak + 1
+
+      return restStreak >= 3
+    })
+  })
+
 const decodeBase64Url = (value: string) => {
   const base64 = value
     .replaceAll('-', '+')
@@ -267,6 +298,8 @@ const parseCompactShareData = (
       players: game.map((playerIndex) => players[playerIndex]),
     })),
     usePositions: parsed.u === true,
+    generationVersion:
+      typeof parsed.a === 'string' ? parsed.a : undefined,
     positions,
   }
 }
@@ -289,6 +322,10 @@ const parseLegacyShareData = (
     players: parsed.players,
     games: parsed.games,
     usePositions: parsed.usePositions === true,
+    generationVersion:
+      typeof parsed.generationVersion === 'string'
+        ? parsed.generationVersion
+        : undefined,
     positions:
       parsed.positions && typeof parsed.positions === 'object'
         ? parsed.positions
@@ -391,6 +428,13 @@ const [positions, setPositions] =
       () =>
         sharedData?.games ??
         loadSavedGames()
+    )
+
+  const [resultVersion, setResultVersion] =
+    useState<string | null>(
+      () =>
+        sharedData?.generationVersion ??
+        loadSavedGamesVersion()
     )
 
   const [history, setHistory] =
@@ -515,6 +559,24 @@ useEffect(() => {
       // 保存できなくても続行
     }
   }, [games])
+
+  useEffect(() => {
+    try {
+      if (games.length === 0 || !resultVersion) {
+        localStorage.removeItem(
+          CURRENT_GAMES_VERSION_STORAGE_KEY
+        )
+        return
+      }
+
+      localStorage.setItem(
+        CURRENT_GAMES_VERSION_STORAGE_KEY,
+        resultVersion
+      )
+    } catch {
+      // 保存できなくても続行
+    }
+  }, [games.length, resultVersion])
 
   useEffect(() => {
     try {
@@ -795,6 +857,8 @@ setGames([])
             ],
           })
         ),
+
+      generationVersion: APP_VERSION,
     }
 
     setHistory(
@@ -845,6 +909,10 @@ setGames([])
           ],
         })
       )
+    )
+
+    setResultVersion(
+      item.generationVersion ?? null
     )
 
     // スクロール位置は変更しない
@@ -1091,7 +1159,12 @@ setIsGenerating(
           positions,
         })
 
+        if (hasThreeConsecutiveRests(result, players)) {
+          throw new Error('3連続休憩を含む結果を検出しました')
+        }
+
         setGames(result)
+        setResultVersion(APP_VERSION)
         saveHistory(result)
         maybeShowKanakoBoss()
       } catch {
@@ -1123,7 +1196,17 @@ setIsGenerating(
           event.data.type === 'complete' &&
           event.data.games
         ) {
+          if (hasThreeConsecutiveRests(event.data.games, players)) {
+            alert(
+              '生成結果の検査で3連続休憩を検出しました。もう一度生成してください。'
+            )
+            worker.terminate()
+            setIsGenerating(false)
+            return
+          }
+
           setGames(event.data.games)
+          setResultVersion(APP_VERSION)
           saveHistory(event.data.games)
           maybeShowKanakoBoss()
         } else {
@@ -1264,6 +1347,7 @@ const createShareUrl = () => {
     ),
     u: usePositions,
     o: players.map((player) => positions[player] || '-').join(''),
+    a: resultVersion || undefined,
   }
 
   const encoded = encodeBase64Url(
@@ -1751,6 +1835,10 @@ const shareResult = async () => {
                       }
                       試合
 
+                      <span className="generation-version">
+                        生成 Ver. {item.generationVersion ?? '不明'}
+                      </span>
+
                     </div>
 
                   </div>
@@ -1801,6 +1889,13 @@ const shareResult = async () => {
 
         <>
 
+          {resultVersion !== APP_VERSION && (
+            <p className="result-version-warning" role="note">
+              この結果は旧バージョン、または生成バージョン不明の結果です。
+              最新版で再生成してください。
+            </p>
+          )}
+
           {hasForbiddenPositionLineup && (
             <p className="position-warning" role="note">
               注意：出場回数などの条件を満たすため、
@@ -1814,6 +1909,10 @@ const shareResult = async () => {
             <h2>
               📊 出場状況 📊
             </h2>
+
+            <p className="generation-version current-result-version">
+              生成 Ver. {resultVersion ?? '不明'}
+            </p>
 
             <div className="result-actions share-buttons">
               <button

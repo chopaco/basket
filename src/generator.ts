@@ -1816,6 +1816,24 @@ schedule.forEach(
     )
   }
 
+  if (
+    players.some((player) => {
+      let restStreak = 0
+
+      return globalBest.some((game) => {
+        restStreak = game.players.includes(player)
+          ? 0
+          : restStreak + 1
+
+        return restStreak >= 3
+      })
+    })
+  ) {
+    throw new Error(
+      '3連続休憩を含まない組み合わせを作成できませんでした'
+    )
+  }
+
   return globalBest
 }
 

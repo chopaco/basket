@@ -1216,6 +1216,30 @@ h2 {
   line-height: 1.5;
 }
 
+.result-version-warning {
+  margin: 0 0 16px;
+  padding: 10px 12px;
+  border: 1px solid #e8a23b;
+  border-radius: 10px;
+  background: #fff7e6;
+  color: #7a4700;
+  font-size: 13px;
+  line-height: 1.5;
+}
+
+.generation-version {
+  display: block;
+  margin-top: 3px;
+  color: #7c8793;
+  font-size: 11px;
+  font-weight: 400;
+}
+
+.current-result-version {
+  margin: -8px 0 10px;
+  text-align: center;
+}
+
 @media (max-width: 480px) {
   .share-buttons {
     gap: 6px;
