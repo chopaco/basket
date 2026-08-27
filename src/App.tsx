@@ -63,7 +63,7 @@ const MAX_PLAYERS = 12
 const MIN_GAMES = 1
 const MAX_GAMES = 16
 const MAX_HISTORY = 3
-const APP_VERSION = '10.1'
+const APP_VERSION = '10.2'
 
 const PLAYERS_STORAGE_KEY = 'team-maker-players'
 const GAME_COUNT_STORAGE_KEY = 'team-maker-game-count'
@@ -1197,11 +1197,11 @@ setIsGenerating(
           event.data.games
         ) {
           if (hasThreeConsecutiveRests(event.data.games, players)) {
-            alert(
-              '生成結果の検査で3連続休憩を検出しました。もう一度生成してください。'
-            )
             worker.terminate()
-            setIsGenerating(false)
+            setTimeout(
+              runMainThreadFallback,
+              20
+            )
             return
           }
 
@@ -1209,6 +1209,15 @@ setIsGenerating(
           setResultVersion(APP_VERSION)
           saveHistory(event.data.games)
           maybeShowKanakoBoss()
+        } else if (
+          event.data.message?.includes('3連続休憩')
+        ) {
+          worker.terminate()
+          setTimeout(
+            runMainThreadFallback,
+            20
+          )
+          return
         } else {
           alert(
             event.data.message ||
