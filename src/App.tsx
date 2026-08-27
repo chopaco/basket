@@ -63,7 +63,7 @@ const MAX_PLAYERS = 12
 const MIN_GAMES = 1
 const MAX_GAMES = 16
 const MAX_HISTORY = 3
-const APP_VERSION = '10.2'
+const APP_VERSION = '10.3'
 
 const PLAYERS_STORAGE_KEY = 'team-maker-players'
 const GAME_COUNT_STORAGE_KEY = 'team-maker-game-count'
@@ -364,12 +364,6 @@ function App() {
   const [sharedData] =
     useState(loadSharedData)
 
-  const [name, setName] =
-    useState('')
-
-  const [inputError, setInputError] =
-    useState('')
-
   const [editingPlayer, setEditingPlayer] =
     useState<string | null>(null)
 
@@ -390,9 +384,6 @@ const [
     sharedData?.usePositions ??
     loadSavedUsePositions()
 )
-
-const [position, setPosition] =
-  useState<Position>('')
 
 const [positions, setPositions] =
   useState<
@@ -428,6 +419,13 @@ const [positions, setPositions] =
       () =>
         sharedData?.games ??
         loadSavedGames()
+    )
+
+  const [setupPlayerCount, setSetupPlayerCount] =
+    useState(() =>
+      players.length >= MIN_PLAYERS
+        ? players.length
+        : 8
     )
 
   const [resultVersion, setResultVersion] =
@@ -600,56 +598,33 @@ useEffect(() => {
   // 参加者
   // =========================================================
 
-  const addPlayer = () => {
-    const value = name.trim()
+  const placeholderNames = Array.from(
+    { length: MAX_PLAYERS },
+    (_, index) => String.fromCharCode(65 + index)
+  )
 
-    if (!value) {
-      setInputError(
-        '参加者名を入力してください'
-      )
-      return
-    }
+  const setupPlayers = () => {
+    const nextPlayers = placeholderNames.slice(
+      0,
+      setupPlayerCount
+    )
 
-    if (
-      usePositions &&
-      !position
-    ) {
-      setInputError(
-        'ポジションを選択してください'
-      )
-      return
-    }
+    setPlayers(nextPlayers)
+    setPositions({})
+    setGames([])
+    setResultVersion(null)
+  }
 
-    if (players.includes(value)) {
-      setInputError(
-        '同じ名前が登録されています'
-      )
-      return
-    }
+  const addProvisionalPlayer = () => {
+    if (players.length >= MAX_PLAYERS) return
 
-    if (players.length >= MAX_PLAYERS) {
-      setInputError(
-        `参加者は最大${MAX_PLAYERS}人までです`
-      )
-      return
-    }
+    const placeholder = placeholderNames.find(
+      (candidate) => !players.includes(candidate)
+    ) ?? `参加者${players.length + 1}`
 
-setPlayers([
-  ...players,
-  value,
-])
-
-if (usePositions) {
-  setPositions({
-    ...positions,
-    [value]: position,
-  })
-}
-
-setName('')
-setPosition('')
-setInputError('')
-setGames([])
+    setPlayers((current) => [...current, placeholder])
+    setGames([])
+    setResultVersion(null)
   }
 
   const startEditingPlayer = (
@@ -755,6 +730,10 @@ setGames([])
     const playerToRemove =
       players[index]
 
+    if (editingPlayer === playerToRemove) {
+      cancelEditingPlayer()
+    }
+
     setPlayers(
       players.filter(
         (_, i) =>
@@ -775,6 +754,7 @@ setGames([])
     )
 
     setGames([])
+    setResultVersion(null)
   }
 
   const clearPlayers = () => {
@@ -793,8 +773,7 @@ setGames([])
     setPlayers([])
     setPositions({})
     setGames([])
-    setName('')
-    setPosition('')
+    setResultVersion(null)
   }
 
   const updatePlayerPosition = (
@@ -809,6 +788,7 @@ setGames([])
     )
 
     setGames([])
+    setResultVersion(null)
   }
 
   // =========================================================
@@ -879,6 +859,7 @@ setGames([])
     setPlayers([
       ...item.players,
     ])
+    setSetupPlayerCount(item.players.length)
 
     setGameCount(
       Math.min(
@@ -1405,11 +1386,15 @@ const shareResult = async () => {
   }
 }
 
-  const addPlayerDisabled =
-    !name.trim() ||
+  const createGamesDisabled =
+    isGenerating ||
+    players.length < MIN_PLAYERS ||
+    players.length > MAX_PLAYERS ||
     (
       usePositions &&
-      !position
+      players.some(
+        (player) => !positions[player]
+      )
     )
 
   // =========================================================
@@ -1477,106 +1462,80 @@ const shareResult = async () => {
           --- 参加者登録 ---
         </h2>
 
-        <div className="position-mode">
-          <label>
+        {players.length === 0 ? (
+          <div className="player-setup">
+            <label htmlFor="setup-player-count">
+              参加人数
+            </label>
             <input
-              type="checkbox"
-              checked={usePositions}
-              onChange={(e) => {
-                setUsePositions(
-                  e.target.checked
+              id="setup-player-count"
+              type="number"
+              min={MIN_PLAYERS}
+              max={MAX_PLAYERS}
+              value={setupPlayerCount}
+              onChange={(event) =>
+                setSetupPlayerCount(
+                  Math.min(
+                    MAX_PLAYERS,
+                    Math.max(
+                      MIN_PLAYERS,
+                      Number(event.target.value) || MIN_PLAYERS
+                    )
+                  )
                 )
-                setPosition('')
-                setInputError('')
-                setGames([])
-              }}
-            />
-
-            ポジション設定を使う
-          </label>
-
-          {usePositions && (
-            <p className="position-help">
-              ONの場合は全員にG・F・Cを設定してください
-            </p>
-          )}
-        </div>
-
-        <div className="input-area">
-
-          <input
-            value={
-              name
-            }
-            onChange={(e) => {
-              setName(
-                e.target.value
-              )
-              setInputError('')
-            }}
-            onKeyDown={(e) => {
-              if (
-                e.key ===
-                'Enter'
-              ) {
-                addPlayer()
               }
-            }}
-            placeholder="参加者の名前"
-            maxLength={10}
-          />
-
-          {usePositions && (
-            <div
-              className="position-picker"
-              aria-label="新しい参加者のポジション"
+            />
+            <button
+              type="button"
+              onClick={setupPlayers}
             >
-              {(['G', 'F', 'C'] as const).map(
-                (value) => (
-                  <button
-                    type="button"
-                    className={
-                      position === value
-                        ? 'position-button selected'
-                        : 'position-button'
-                    }
-                    aria-pressed={
-                      position === value
-                    }
-                    key={value}
-                    onClick={() => {
-                      setPosition(value)
-                      setInputError('')
-                    }}
-                  >
-                    {value}
-                  </button>
-                )
-              )}
-            </div>
-          )}
+              参加者をセット
+            </button>
+          </div>
+        ) : (
+          <div className="player-count-stepper">
+            <span>参加人数</span>
+            <button
+              type="button"
+              aria-label="参加者を1人減らす"
+              disabled={players.length <= MIN_PLAYERS}
+              onClick={() => removePlayer(players.length - 1)}
+            >
+              −
+            </button>
+            <strong>{players.length}</strong>
+            <button
+              type="button"
+              aria-label="参加者を1人増やす"
+              disabled={players.length >= MAX_PLAYERS}
+              onClick={addProvisionalPlayer}
+            >
+              ＋
+            </button>
+          </div>
+        )}
 
-          <button
-            className="add-player-button"
-            onClick={
-              addPlayer
-            }
-            disabled={
-              addPlayerDisabled
-            }
-          >
-            追加
-          </button>
+        {players.length > 0 && (
+          <div className="position-mode">
+            <label>
+              <input
+                type="checkbox"
+                checked={usePositions}
+                onChange={(event) => {
+                  setUsePositions(event.target.checked)
+                  setGames([])
+                  setResultVersion(null)
+                }}
+              />
+              ポジション設定を使う
+            </label>
 
-        </div>
-
-        {inputError && (
-          <p
-            className="input-error"
-            role="alert"
-          >
-            {inputError}
-          </p>
+            {usePositions && (
+              <p className="position-help">
+                ONの場合は全員にG・F・Cを設定してください
+              </p>
+            )}
+          </div>
         )}
 
         <p>
@@ -1592,10 +1551,7 @@ const shareResult = async () => {
         <ul className="player-list">
 
           {players.map(
-            (
-              player,
-              index
-            ) => (
+            (player) => (
               <li
                 key={
                   player
@@ -1684,20 +1640,6 @@ const shareResult = async () => {
                   </div>
                 )}
 
-                {editingPlayer !== player && (
-                <button
-                  className="remove-player-button"
-                  aria-label={`${player}を削除`}
-                  onClick={() =>
-                    removePlayer(
-                      index
-                    )
-                  }
-                >
-                  削除
-                </button>
-                )}
-
               </li>
             )
           )}
@@ -1709,7 +1651,7 @@ const shareResult = async () => {
             className="clear-players-button"
             onClick={clearPlayers}
           >
-            参加者を全員削除
+            参加者設定をリセット
           </button>
         )}
 
@@ -1761,7 +1703,7 @@ const shareResult = async () => {
             createGames
           }
           disabled={
-            isGenerating
+            createGamesDisabled
           }
         >
 
@@ -2187,36 +2129,6 @@ const shareResult = async () => {
                 </tbody>
 
               </table>
-
-            </div>
-
-            <div className="explanation">
-
-
-
-              <p>
-                3連続出場は完全禁止ではなく、
-                <strong>
-                  連続出場が特定の人に
-                  偏らないように
-                </strong>
-                調整しています。
-              </p>
-
-              <p>
-                また、
-                <strong>
-                  出場回数の差を最優先
-                </strong>
-                しています。
-              </p>
-
-              <p>
-                <strong>
-                  同程度に公平なパターンは
-                  毎回ランダムに変化します。
-                </strong>
-              </p>
 
             </div>
 
