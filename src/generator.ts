@@ -641,6 +641,39 @@ const calculatePositionPenalty = (
         number
       >
   ) => {
+    const previousGame = schedule.at(-1)
+    const twoGamesAgo = schedule.at(-2)
+
+    // 2試合連続で休んだ人は次の試合に必ず出場させる。
+    if (
+      previousGame &&
+      twoGamesAgo &&
+      players.some(
+        (player) =>
+          !previousGame.players.includes(player) &&
+          !twoGamesAgo.players.includes(player) &&
+          !candidate.players.includes(player)
+      )
+    ) {
+      return Infinity
+    }
+
+    // 次の試合で必須出場者が5人を超える候補は、事前に除外して手詰まりを防ぐ。
+    if (
+      previousGame &&
+      schedule.length + 1 < gameCount
+    ) {
+      const nextRequiredPlayers = players.filter(
+        (player) =>
+          !previousGame.players.includes(player) &&
+          !candidate.players.includes(player)
+      )
+
+      if (nextRequiredPlayers.length > TEAM_SIZE) {
+        return Infinity
+      }
+    }
+
     const testSchedule = [
       ...schedule,
       candidate,

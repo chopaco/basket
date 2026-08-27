@@ -60,7 +60,7 @@ const MAX_PLAYERS = 12
 const MIN_GAMES = 1
 const MAX_GAMES = 16
 const MAX_HISTORY = 3
-const APP_VERSION = '9.9'
+const APP_VERSION = '10.0'
 
 const PLAYERS_STORAGE_KEY = 'team-maker-players'
 const GAME_COUNT_STORAGE_KEY = 'team-maker-game-count'
