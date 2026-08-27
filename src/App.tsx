@@ -1791,10 +1791,6 @@ const shareResult = async () => {
                       }
                       試合
 
-                      <span className="generation-version">
-                        生成ロジック Ver. {item.generationVersion ?? '不明'}
-                      </span>
-
                     </div>
 
                   </div>
@@ -1866,10 +1862,6 @@ const shareResult = async () => {
             <h2>
               📊 出場状況 📊
             </h2>
-
-            <p className="generation-version current-result-version">
-              生成ロジック Ver. {resultVersion ?? '不明'}
-            </p>
 
             <div className="result-actions share-buttons">
               <button
