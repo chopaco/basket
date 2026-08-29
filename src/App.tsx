@@ -7,6 +7,7 @@ import {
 } from 'react'
 import './App.css'
 import {
+  GENERATION_VERSION,
   generateGames,
   getPositionRating,
 } from './generator'
@@ -63,8 +64,7 @@ const MAX_PLAYERS = 12
 const MIN_GAMES = 1
 const MAX_GAMES = 16
 const MAX_HISTORY = 3
-const APP_VERSION = '10.7'
-const GENERATION_VERSION = '4'
+const APP_VERSION = '10.8'
 const COMPATIBLE_GENERATION_VERSIONS = new Set([
   GENERATION_VERSION,
 ])
@@ -1174,6 +1174,7 @@ setIsGenerating(
       worker.onmessage = (
         event: MessageEvent<{
           type: 'complete' | 'error'
+          generationVersion?: string
           games?: Game[]
           message?: string
         }>
@@ -1182,7 +1183,10 @@ setIsGenerating(
           event.data.type === 'complete' &&
           event.data.games
         ) {
-          if (hasThreeConsecutiveRests(event.data.games, players)) {
+          if (
+            event.data.generationVersion !== GENERATION_VERSION ||
+            hasThreeConsecutiveRests(event.data.games, players)
+          ) {
             worker.terminate()
             setTimeout(
               runMainThreadFallback,

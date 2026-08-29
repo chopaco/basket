@@ -1,5 +1,7 @@
 export type Position = 'G' | 'F' | 'C' | ''
 
+export const GENERATION_VERSION = '4'
+
 export type Game = {
   gameNumber: number
   players: string[]
