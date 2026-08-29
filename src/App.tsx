@@ -64,7 +64,7 @@ const MAX_PLAYERS = 12
 const MIN_GAMES = 1
 const MAX_GAMES = 16
 const MAX_HISTORY = 3
-const APP_VERSION = '10.8'
+const APP_VERSION = '10.9'
 const COMPATIBLE_GENERATION_VERSIONS = new Set([
   GENERATION_VERSION,
 ])
@@ -377,6 +377,9 @@ function App() {
 
   const [editError, setEditError] =
     useState('')
+
+  const [isEditingParticipants, setIsEditingParticipants] =
+    useState(false)
 
   const [resultView, setResultView] =
     useState<'games' | 'summary'>('games')
@@ -760,6 +763,18 @@ useEffect(() => {
 
     setGames([])
     setResultVersion(null)
+  }
+
+  const toggleParticipantEditing = () => {
+    if (
+      !isEditingParticipants &&
+      editingPlayer &&
+      !saveEditedPlayer()
+    ) {
+      return
+    }
+
+    setIsEditingParticipants((current) => !current)
   }
 
   const clearPlayers = () => {
@@ -1557,10 +1572,31 @@ const shareResult = async () => {
           人
         </p>
 
+        {players.length > 0 && (
+          <div className="participant-edit-controls">
+            <button
+              type="button"
+              className={
+                isEditingParticipants
+                  ? 'participant-edit-button active'
+                  : 'participant-edit-button'
+              }
+              aria-pressed={isEditingParticipants}
+              onClick={toggleParticipantEditing}
+            >
+              {isEditingParticipants ? '編集完了' : '参加者編集'}
+            </button>
+
+            {isEditingParticipants && players.length <= MIN_PLAYERS && (
+              <span>参加者は{MIN_PLAYERS}人未満にできません</span>
+            )}
+          </div>
+        )}
+
         <ul className="player-list">
 
           {players.map(
-            (player) => (
+            (player, index) => (
               <li
                 key={
                   player
@@ -1647,6 +1683,18 @@ const shareResult = async () => {
                       )
                     )}
                   </div>
+                )}
+
+                {isEditingParticipants && editingPlayer !== player && (
+                  <button
+                    type="button"
+                    className="remove-player-button"
+                    disabled={players.length <= MIN_PLAYERS}
+                    aria-label={`${player}を削除`}
+                    onClick={() => removePlayer(index)}
+                  >
+                    削除
+                  </button>
                 )}
 
               </li>
